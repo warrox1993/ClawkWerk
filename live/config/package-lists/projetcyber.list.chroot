@@ -1,0 +1,8 @@
+# Paquets installés dans l'image live. Minimal par principe (surface réduite).
+openssh-client
+ca-certificates
+# Interface web du questionnaire : décommenter pour une image GRAPHIQUE
+# (ajoute un bureau léger + navigateur). Sinon, image console + orchestrateur CLI.
+#xserver-xorg
+#openbox
+#firefox-esr

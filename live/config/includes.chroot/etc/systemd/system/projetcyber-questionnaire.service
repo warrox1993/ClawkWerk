@@ -1,0 +1,21 @@
+[Unit]
+Description=projetCyber — questionnaire d'audit CyFun (localhost strict)
+After=network.target
+Documentation=file:/opt/projetcyber
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/projetcyber
+# Écoute sur 127.0.0.1:8099 (loopback strict, jamais exposé au réseau).
+# Sortie des réponses dans un tmpfs (/run) : rien ne survit au redémarrage.
+RuntimeDirectory=projetcyber
+ExecStart=/opt/projetcyber/questionnaire -out /run/projetcyber/responses.json
+Restart=on-failure
+# Durcissement minimal : pas de privilèges superflus, pas d'écriture système.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/projetcyber
+
+[Install]
+WantedBy=multi-user.target

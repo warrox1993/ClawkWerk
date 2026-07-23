@@ -1,0 +1,4 @@
+#!/bin/sh
+# Hook live-build (exécuté dans le chroot) : active le service au boot.
+set -e
+systemctl enable projetcyber-questionnaire.service || true

@@ -1,0 +1,10 @@
+{
+  "PR.PS-04.1": {
+    "impl": 5,
+    "reason": "Journaux centralisés vers un SIEM, revue quotidienne, rétention 12 mois, taux d'exceptions mesuré < 0,5% — preuves au dossier §4.2 (captures + procédure)."
+  },
+  "PR.AA-03.1": {
+    "na": true,
+    "reason": "L'organisation n'exploite aucun point d'accès Wi-Fi (réseau 100% filaire, Wi-Fi désactivé au niveau des équipements) — constat §2.3."
+  }
+}

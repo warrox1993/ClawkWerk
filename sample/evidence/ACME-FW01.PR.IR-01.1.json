@@ -1,0 +1,9 @@
+ 0 chain=input action=accept connection-state=established,related
+ 1 chain=input action=accept protocol=icmp
+ 2 chain=forward action=accept connection-state=established,related
+ 3 chain=forward action=drop connection-state=invalid
+ 4 chain=input action=accept in-interface=lan
+ 5 chain=input action=accept dst-port=22 protocol=tcp in-interface=lan
+ 6 chain=forward action=accept in-interface=lan out-interface=wan
+ 7 chain=input action=drop
+ 8 chain=forward action=drop

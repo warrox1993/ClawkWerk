@@ -1,0 +1,23 @@
+# Binaires de build (ancrés à la racine — NE PAS ignorer le dossier cmd/orchestrator !)
+/bin/
+/orchestrator
+/questionnaire
+
+# Artefacts live-boot
+/live/live-image*
+/live/config/includes.chroot/opt/projetcyber/orchestrator
+/live/config/includes.chroot/opt/projetcyber/questionnaire
+/live/config/includes.chroot/opt/projetcyber/sample/
+/live/.build/
+/live/chroot/
+*.iso
+
+# Sorties d'audit (peuvent contenir des données client — jamais versionnées)
+*.db
+/out/
+rapport.*
+audit.json
+
+# Divers
+*.test
+*.out
