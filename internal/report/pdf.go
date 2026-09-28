@@ -142,6 +142,12 @@ func PDF(v View) ([]byte, error) {
 			para("Toutes les mesures clés atteignent le seuil requis.")
 		}
 	}
+	if len(c.Categories) > 0 {
+		para("Maturité par catégorie (documentation / implementation / maturité, calcul de l'outil du CCB) :")
+		for _, cs := range c.Categories {
+			bullet(fmt.Sprintf("%s  %s / %s / %s", cs.Category, score2(cs.Documentation), score2(cs.Implementation), score2(cs.Maturity)))
+		}
+	}
 
 	// --- 2. Contexte et méthodologie ---
 	heading("2. Contexte et méthodologie")

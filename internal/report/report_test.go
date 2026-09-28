@@ -113,3 +113,18 @@ func TestXLSX_IsValidZipWithSheet(t *testing.T) {
 		t.Errorf("feuille de synthèse incomplète: %s", sheet)
 	}
 }
+
+// Le classeur XLSX ne doit jamais afficher « NON CONFORME » pour un audit
+// incomplet (verdict bloqué), et reprend la maturité par catégorie.
+func TestXLSX_AuditIncompletEtCategories(t *testing.T) {
+	sess := session.AuditSession{Framework: session.Framework{Level: "Basic"}}
+	sess.Conformity = session.ConformitySummary{Incomplete: true, UnassessedControls: []string{"GV.OC-03.1"},
+		Categories: []session.CategoryScore{{Category: "GV.OC", Function: "GOVERN", Documentation: 3, Implementation: 2, Maturity: 2.5}}}
+	xml := sheetXML(Build(sess))
+	if strings.Contains(xml, "NON CONFORME") || !strings.Contains(xml, "AUDIT INCOMPLET") {
+		t.Fatal("audit incomplet : le verdict XLSX doit être « AUDIT INCOMPLET »")
+	}
+	if !strings.Contains(xml, "GV.OC") {
+		t.Fatal("maturité par catégorie absente du XLSX")
+	}
+}

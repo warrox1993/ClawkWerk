@@ -85,6 +85,14 @@ au niveau {{.Session.Conformity.Level}}.</p>
 <p>Mesures clés (Key Measures) non conformes, à traiter en priorité :</p>
 <ul>{{range .Session.Conformity.NonConformKeyMeasures}}<li><code>{{.}}</code></li>{{end}}</ul>
 {{else}}<p>Toutes les mesures clés atteignent le seuil requis.</p>{{end}}
+{{if .Session.Conformity.Categories}}
+<p>Maturité par catégorie (même calcul que l'onglet « Summary » de l'outil d'auto-évaluation du CCB :
+moyenne des sous-catégories, Documentation et Implementation séparées) :</p>
+<table>
+<tr><th>Fonction</th><th>Catégorie</th><th>Documentation</th><th>Implementation</th><th>Maturité</th></tr>
+{{range .Session.Conformity.Categories}}<tr><td>{{.Function}}</td><td><code>{{.Category}}</code></td><td>{{pct1 .Documentation}}</td><td>{{pct1 .Implementation}}</td><td>{{pct1 .Maturity}}</td></tr>
+{{end}}</table>
+{{end}}
 {{if .Session.Conformity.NonConformCategories}}
 <p>Catégories sous le seuil ({{pct1 .Session.Conformity.CategoryThreshold}}/5, niveau {{.Session.Conformity.Level}}) :</p>
 <ul>{{range .Session.Conformity.NonConformCategories}}<li><code>{{.}}</code></li>{{end}}</ul>

@@ -47,10 +47,24 @@ type ConformitySummary struct {
 	// « AUDIT INCOMPLET — N contrôles à évaluer ». Les contrôles concernés ne sont
 	// PAS notés 0 (ce serait une fausse faille) : ils sont exclus de la moyenne et
 	// listés ici comme à compléter.
+	// Categories = « Category Maturity Overview » de l'onglet Summary de l'outil
+	// officiel : pour chaque catégorie, maturités Documentation et
+	// Implementation (moyennes des sous-catégories) et leur moyenne.
+	Categories []CategoryScore `json:"categories,omitempty"`
+
 	Incomplete         bool     `json:"incomplete"`
 	UnassessedControls []string `json:"unassessed_controls,omitempty"`
 
 	Conform bool `json:"conform"`
+}
+
+// CategoryScore = une ligne du « Category Maturity Overview » officiel.
+type CategoryScore struct {
+	Category       string              `json:"category"`
+	Function       string              `json:"function"`
+	Documentation  cyfun.MaturityScore `json:"documentation_maturity"`
+	Implementation cyfun.MaturityScore `json:"implementation_maturity"`
+	Maturity       cyfun.MaturityScore `json:"maturity"`
 }
 
 // ComputeConformity applique les règles officielles du NIVEAU demandé : conforme
@@ -99,8 +113,9 @@ func ComputeConformity(results []assess.ControlResult, level string) ConformityS
 	// CONTRÔLES ÉVALUÉS. Un contrôle N/A prend la valeur du seuil KM (naValue),
 	// comme la substitution du xlsx. Quand l'audit est COMPLET, assessed == results
 	// et l'agrégation est rigoureusement identique (parité CCB préservée).
-	totalMat, catMat := aggregate(assessed, km)
+	totalMat, catMat, catAxes := aggregateAxes(assessed, km)
 	s.TotalMaturity = totalMat
+	s.Categories = catAxes
 
 	// Seuil par CATÉGORIE (Essential : cat > 0), sur la Category Maturity Score.
 	if cat > 0 {
@@ -138,6 +153,14 @@ func ComputeConformity(results []assess.ControlResult, level string) ConformityS
 // contrôles ne pèse pas plus qu'une autre — d'où l'écart avec une moyenne à plat.
 // Renvoie la maturité totale et la Category Maturity Score par catégorie.
 func aggregate(results []assess.ControlResult, naValue cyfun.MaturityScore) (total cyfun.MaturityScore, catMaturity map[string]cyfun.MaturityScore) {
+	total, catMaturity, _ = aggregateAxes(results, naValue)
+	return total, catMaturity
+}
+
+// aggregateAxes fait le calcul d'aggregate et renvoie en plus, par catégorie
+// (triées dans l'ordre du référentiel), les maturités Documentation et
+// Implementation, comme l'onglet Summary de l'outil officiel.
+func aggregateAxes(results []assess.ControlResult, naValue cyfun.MaturityScore) (total cyfun.MaturityScore, catMaturity map[string]cyfun.MaturityScore, cats []CategoryScore) {
 	type acc struct {
 		doc, impl cyfun.MaturityScore
 		n         int
@@ -168,6 +191,10 @@ func aggregate(results []assess.ControlResult, naValue cyfun.MaturityScore) (tot
 	}
 	// Étage 2 : catégorie = moyenne des sous-catégories.
 	cat := map[string]*acc{}
+	catFunc := map[string]string{}
+	for _, r := range results {
+		catFunc[r.Meta.Category] = string(r.Meta.Function)
+	}
 	for subID, a := range sub {
 		c := cat[subCat[subID]]
 		if c == nil {
@@ -187,12 +214,23 @@ func aggregate(results []assess.ControlResult, naValue cyfun.MaturityScore) (tot
 		m := (catDoc + catImpl) / 2
 		catMaturity[id] = m
 		totSum += m
+		cats = append(cats, CategoryScore{Category: id, Function: catFunc[id], Documentation: catDoc, Implementation: catImpl, Maturity: m})
 	}
+	sort.Slice(cats, func(i, j int) bool {
+		fi, fj := functionRank[cats[i].Function], functionRank[cats[j].Function]
+		if fi != fj {
+			return fi < fj
+		}
+		return cats[i].Category < cats[j].Category
+	})
 	if len(cat) > 0 {
 		total = totSum / cyfun.MaturityScore(len(cat))
 	}
-	return total, catMaturity
+	return total, catMaturity, cats
 }
+
+// functionRank ordonne les fonctions comme le référentiel (GV, ID, PR, DE, RS, RC).
+var functionRank = map[string]int{"GOVERN": 1, "IDENTIFY": 2, "PROTECT": 3, "DETECT": 4, "RESPOND": 5, "RECOVER": 6}
 
 // AuditSession = enveloppe complète d'une session d'audit.
 type AuditSession struct {
