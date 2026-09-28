@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -67,6 +68,7 @@ func TestPostSubmitConstruitResponses(t *testing.T) {
 	srv := New(testQuestions())
 
 	form := url.Values{}
+	form.Set("csrf_token", srv.CSRFToken())
 	form.Set("ID.AM-01/documentation/inventaire", "defined")
 	form.Set("GV.PO-01/documentation/politique", "none")
 
@@ -96,6 +98,7 @@ func TestPostSubmitConstruitResponses(t *testing.T) {
 func TestResponsesEstUneCopie(t *testing.T) {
 	srv := New(testQuestions())
 	form := url.Values{}
+	form.Set("csrf_token", srv.CSRFToken())
 	form.Set("ID.AM-01/documentation/inventaire", "defined")
 	req := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -107,5 +110,123 @@ func TestResponsesEstUneCopie(t *testing.T) {
 	second := srv.Responses()
 	if second["ID.AM-01/documentation/inventaire"] != "defined" {
 		t.Errorf("Responses() ne renvoie pas une copie : l'état interne a été muté")
+	}
+}
+
+// post envoie une soumission avec les en-têtes donnés.
+func post(srv *Server, form url.Values, headers map[string]string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8099/submit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	return rec
+}
+
+// Le formulaire embarque le jeton anti-CSRF, propre à chaque démarrage.
+func TestFormContientJeton(t *testing.T) {
+	srv := New(testQuestions())
+	if len(srv.CSRFToken()) != 64 || New(testQuestions()).CSRFToken() == srv.CSRFToken() {
+		t.Fatalf("jeton anti-CSRF absent ou non aléatoire : %q", srv.CSRFToken())
+	}
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if !strings.Contains(rec.Body.String(), `name="csrf_token" value="`+srv.CSRFToken()+`"`) {
+		t.Error("le formulaire ne contient pas le jeton anti-CSRF")
+	}
+	if rec.Header().Get("X-Frame-Options") != "DENY" || !strings.Contains(rec.Header().Get("Content-Security-Policy"), "frame-ancestors 'none'") {
+		t.Error("en-têtes anti-clickjacking absents")
+	}
+}
+
+func TestPostRefuseSansJetonValide(t *testing.T) {
+	for name, token := range map[string]string{"absent": "", "faux": strings.Repeat("0", 64)} {
+		t.Run(name, func(t *testing.T) {
+			srv := New(testQuestions())
+			called := false
+			srv.OnSubmit = func(survey.Responses) error { called = true; return nil }
+			form := url.Values{}
+			if token != "" {
+				form.Set("csrf_token", token)
+			}
+			form.Set("ID.AM-01/documentation/inventaire", "defined")
+			if rec := post(srv, form, nil); rec.Code != http.StatusForbidden {
+				t.Fatalf("code %d, 403 attendu", rec.Code)
+			}
+			if srv.Responses() != nil || called {
+				t.Error("une soumission sans jeton valide a été enregistrée")
+			}
+		})
+	}
+}
+
+func TestPostRefuseOrigineEtrangere(t *testing.T) {
+	cases := map[string]map[string]string{
+		"origin tierce": {"Origin": "https://evil.example"},
+		"referer tiers": {"Referer": "https://evil.example/page"},
+		"origin opaque": {"Origin": "null"},
+		"autre port":    {"Origin": "http://127.0.0.1:9999"},
+	}
+	for name, h := range cases {
+		t.Run(name, func(t *testing.T) {
+			srv := New(testQuestions())
+			form := url.Values{"csrf_token": {srv.CSRFToken()}}
+			if rec := post(srv, form, h); rec.Code != http.StatusForbidden {
+				t.Errorf("code %d, 403 attendu", rec.Code)
+			}
+		})
+	}
+	srv := New(testQuestions())
+	form := url.Values{"csrf_token": {srv.CSRFToken()}}
+	if rec := post(srv, form, map[string]string{"Origin": "http://127.0.0.1:8099"}); rec.Code != http.StatusOK {
+		t.Errorf("même origine refusée : code %d", rec.Code)
+	}
+}
+
+// Anti DNS rebinding : un nom d'hôte étranger qui pointerait vers 127.0.0.1
+// est refusé, en lecture comme en écriture.
+func TestHoteNonAutorise(t *testing.T) {
+	srv := New(testQuestions())
+	srv.AllowedHosts = []string{"127.0.0.1:8099", "localhost:8099"}
+	req := httptest.NewRequest(http.MethodGet, "http://rebind.evil.example:8099/", nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("hôte étranger accepté : code %d", rec.Code)
+	}
+	req = httptest.NewRequest(http.MethodGet, "http://localhost:8099/", nil)
+	rec = httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("hôte local refusé : code %d", rec.Code)
+	}
+}
+
+func TestOnSubmitRecoitLesReponses(t *testing.T) {
+	srv := New(testQuestions())
+	var got survey.Responses
+	srv.OnSubmit = func(r survey.Responses) error { got = r; return nil }
+	form := url.Values{"csrf_token": {srv.CSRFToken()}, "ID.AM-01/documentation/inventaire": {"defined"}}
+	if rec := post(srv, form, nil); rec.Code != http.StatusOK {
+		t.Fatalf("code %d", rec.Code)
+	}
+	if got["ID.AM-01/documentation/inventaire"] != "defined" {
+		t.Errorf("OnSubmit n'a pas reçu la réponse : %v", got)
+	}
+	srv.OnSubmit = func(survey.Responses) error { return errors.New("disque plein") }
+	if rec := post(srv, form, nil); rec.Code != http.StatusInternalServerError {
+		t.Errorf("échec d'enregistrement non signalé : code %d", rec.Code)
+	}
+}
+
+func TestTitreAfficheLeNiveau(t *testing.T) {
+	srv := New(testQuestions())
+	srv.Level = "Important"
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if !strings.Contains(rec.Body.String(), "niveau Important") || !strings.Contains(rec.Body.String(), "2 questions") {
+		t.Error("le niveau ou le nombre de questions n'apparaît pas dans la page")
 	}
 }
