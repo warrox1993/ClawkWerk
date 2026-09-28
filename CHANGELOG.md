@@ -19,6 +19,8 @@ avec les outils d'auto-évaluation du CCB. Détail et preuves :
   l'outil officiel.
 - Préflight Windows : la ressource refusée est nommée (BitLocker, Device
   Guard, w32tm, journaux…).
+- Rétention des journaux : un journal non plein donne une borne inférieure
+  (« au moins N j »), jamais « trop courte ».
 - Banc de parité reproductible avec les outils officiels et recensement des
   anomalies de leurs formules (`docs/methode/validation/`).
 - Licence PolyForm Noncommercial 1.0.0 et fichier NOTICE (textes CyFun
@@ -45,10 +47,15 @@ avec les outils d'auto-évaluation du CCB. Détail et preuves :
 - Mention légale : ni vérification, ni certification CyFun, ni présomption
   de conformité NIS2 ; CAB accrédité par BELAC et autorisé par le CCB.
 - XLSX : un audit incomplet n'est plus affiché « NON CONFORME ».
+- Revue indépendante : services arrêtés comptés comme actifs, pilotes pris
+  pour des correctifs OS, journal utilisateur lu à la place du journal
+  système, comptes système comptés comme dormants, supports amovibles et
+  emplacement hors-site jamais mesurés mais notés, fonction de classement des
+  erreurs PowerShell qui pouvait échouer elle-même.
 
 ### Mesures
 
-- 399 tests et 282 sous-tests.
+- 411 tests et 282 sous-tests.
 
 ## [1.0.0] - 2026-09-28
 

@@ -25,6 +25,11 @@ type BackupEvidence struct {
 	SolutionPresent   bool `json:"solution_present"`   // une solution de sauvegarde est installée
 	ScheduledJob      bool `json:"scheduled_job"`      // une sauvegarde planifiée existe
 	OffsiteConfigured bool `json:"offsite_configured"` // destination distincte/hors-site configurée
+	// ScheduledUnknown : la planification n'a pas pu être vérifiée (Windows :
+	// un compte non administrateur ne voit pas toutes les tâches planifiées ;
+	// Linux : la crontab de root est illisible sans root). Jamais lu comme
+	// « aucune sauvegarde planifiée ».
+	ScheduledUnknown bool `json:"scheduled_unknown,omitempty"`
 }
 
 // PRDS1101Meta : texte officiel du CCB. Key Measure.
@@ -49,12 +54,12 @@ var PRDS1101Questions = []survey.Question{
 // le nom évoque une sauvegarde (schtasks downlevel). Le caractère hors-site
 // n'est pas déductible ici : offsite_configured=false, à confirmer au
 // questionnaire.
-const PRDS1101WinCmd = WinPre + `$re='Veeam|Acronis|BackupExec|Datto|Cohesity|Rubrik|Commvault|GxCVD|Carbonite|Nakivo|UrBackup|Macrium|Arcserve|Duplicati|Altaro|Druva'; ` + WinAutoServices + `$t=@(schtasks /query /fo csv /nh 2>$null|ConvertFrom-Csv -Header n,d,s|?{$_.n -notlike '\Microsoft\*' -and $_.n -match 'backup|sauvegarde|restic|veeam'}); [pscustomobject]@{solution_present=($S.Count -gt 0); scheduled_job=($t.Count -gt 0); offsite_configured=$false}|ConvertTo-Json`
+const PRDS1101WinCmd = WinPre + `$re='Veeam|Acronis|BackupExec|Datto|Cohesity|Rubrik|Commvault|GxCVD|Carbonite|Nakivo|UrBackup|Macrium|Arcserve|Duplicati|Altaro|Druva'; ` + WinAutoServices + `$adm=([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator); $t=@(schtasks /query /fo csv /nh 2>$null|ConvertFrom-Csv -Header n,d,s|?{($_.n -notlike '\Microsoft\*' -and $_.n -match 'backup|sauvegarde|restic|veeam') -or $_.n -like '*\Microsoft-Windows-WindowsBackup'}); $wsb=@($t|?{$_.n -like '*\Microsoft-Windows-WindowsBackup'}).Count -gt 0; $sj=$null; if($t.Count -gt 0){$sj=$true}elseif($adm){$sj=$false}; [pscustomobject]@{solution_present=((($S.Count+$X.Count) -gt 0) -or $wsb); scheduled_job=$sj; offsite_configured=$null}|ConvertTo-Json`
 
 // PRDS1101LinuxCmd : sonde Linux LECTURE SEULE (3 lignes yes/no) — présence
 // d'un outil de sauvegarde, existence d'une planification (cron/timer), et
 // indice hors-site (toujours "no" : non prouvable depuis l'hôte source).
-const PRDS1101LinuxCmd = `export LC_ALL=C; command -v restic borg duplicity rsnapshot bacula-fd timeshift kopia urbackupclientctl 2>/dev/null | grep -q . && echo yes || echo no; (crontab -l 2>/dev/null; cat /etc/crontab 2>/dev/null; ls /etc/cron.d /etc/cron.hourly /etc/cron.daily /etc/cron.weekly 2>/dev/null; grep -hs . /etc/cron.d/* 2>/dev/null; systemctl list-timers --all --no-legend 2>/dev/null; systemctl --user list-timers --all --no-legend 2>/dev/null; grep -hs -e ExecStart -e Description /etc/systemd/system/*.service 2>/dev/null) | grep -v dpkg-db-backup | grep -qiE 'backup|sauvegarde|restic|borg|duplicity|rsnapshot|timeshift|kopia|bacula|urbackup' && echo yes || echo no; echo no`
+const PRDS1101LinuxCmd = `export LC_ALL=C; command -v restic borg duplicity rsnapshot bacula-fd timeshift kopia urbackupclientctl 2>/dev/null | grep -q . && echo yes || echo no; (crontab -l 2>/dev/null; cat /etc/crontab 2>/dev/null; ls /etc/cron.d /etc/cron.hourly /etc/cron.daily /etc/cron.weekly 2>/dev/null; grep -hs . /etc/cron.d/* 2>/dev/null; systemctl list-timers --all --no-legend 2>/dev/null; systemctl --user list-timers --all --no-legend 2>/dev/null; grep -hs -e ExecStart -e Description /etc/systemd/system/*.service 2>/dev/null) | grep -v dpkg-db-backup | grep -qiE 'backup|sauvegarde|restic|borg|duplicity|rsnapshot|timeshift|kopia|bacula|urbackup' && echo yes || { [ "$(id -u)" = 0 ] && echo no || echo unknown; }; echo no`
 
 // BackupEvaluator implémente assess.Evaluator pour PR.DS-11.1.
 type BackupEvaluator struct{}
@@ -84,6 +89,8 @@ func evaluateBackup(host assess.HostRef, ev BackupEvidence) assess.HostAssessmen
 	case !ev.SolutionPresent:
 		lvl, f.Status = cyfun.Initial, assess.StatusFail
 		f.Message = "Aucune solution de sauvegarde détectée."
+	case !ev.ScheduledJob && ev.ScheduledUnknown:
+		return errorAssessment(host, "Solution de sauvegarde présente ; planification non vérifiable avec ce compte de service (à attester au questionnaire).")
 	case !ev.ScheduledJob:
 		lvl, f.Status = cyfun.Repeatable, assess.StatusPartial
 		f.Message = "Solution de sauvegarde présente mais aucune sauvegarde planifiée."
@@ -122,6 +129,7 @@ func BackupWindowsNormalizer(raw []byte) (json.RawMessage, error) {
 		SolutionPresent:   derefBool(w.SolutionPresent),
 		ScheduledJob:      derefBool(w.ScheduledJob),
 		OffsiteConfigured: derefBool(w.OffsiteConfigured),
+		ScheduledUnknown:  w.ScheduledJob == nil,
 	})
 }
 
@@ -136,6 +144,7 @@ func BackupLinuxNormalizer(raw []byte) (json.RawMessage, error) {
 	ev := BackupEvidence{SolutionPresent: ls[0] == "yes"}
 	if len(ls) > 1 {
 		ev.ScheduledJob = ls[1] == "yes"
+		ev.ScheduledUnknown = ls[1] != "yes" && ls[1] != "no"
 	}
 	if len(ls) > 2 {
 		ev.OffsiteConfigured = ls[2] == "yes"

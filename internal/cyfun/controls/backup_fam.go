@@ -98,6 +98,8 @@ func (BackupTested1102Evaluator) Evaluate(raw assess.RawEvidence) assess.HostAss
 	case !ev.SolutionPresent:
 		return backupAssessment(raw.Host, ev, cyfun.Initial, assess.StatusFail,
 			"Aucune solution de sauvegarde détectée : rien à tester.")
+	case !ev.ScheduledJob && ev.ScheduledUnknown:
+		return errorAssessment(raw.Host, "Planification des sauvegardes non vérifiable avec ce compte de service ; test de restauration à attester au questionnaire.")
 	case !ev.ScheduledJob:
 		return backupAssessment(raw.Host, ev, cyfun.Repeatable, assess.StatusPartial,
 			"Solution présente mais aucune sauvegarde planifiée ; test de restauration à attester.")
@@ -140,6 +142,7 @@ func (BackupOffsite1103Evaluator) Evaluate(raw assess.RawEvidence) assess.HostAs
 		return backupAssessment(raw.Host, ev, cyfun.Defined, assess.StatusPass,
 			"Emplacement distinct/hors-site configuré ; l'équivalence des contrôles de sécurité reste à attester.")
 	}
-	return backupAssessment(raw.Host, ev, cyfun.Repeatable, assess.StatusPartial,
-		"Emplacement distinct/hors-site non confirmé ; à attester au questionnaire.")
+	// Aucune sonde ne mesure l'emplacement hors-site : pas de conclusion, le
+	// contrôle bascule sur l'attestation du questionnaire.
+	return errorAssessment(raw.Host, "Emplacement distinct/hors-site non mesurable côté hôte ; à attester au questionnaire.")
 }

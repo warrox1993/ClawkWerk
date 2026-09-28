@@ -29,9 +29,9 @@ seuils KM 3 / catégorie 3 / total 3,5). Sur-ensembles imbriqués
 
 Au niveau Basic, **16 contrôles sur 34 sont techniquement scannables**
 (le plafond honnête estimé) ; le reste est déclaratif/organisationnel
-(questionnaire). Les 16 scannables s'appliquent aussi aux niveaux
-supérieurs ; les contrôles propres à Important/Essential sont, pour
-l'instant, déclaratifs. Les IDs officiels non normalisés de la CCB
+(questionnaire). En tout, 66 des 218 exigences ont une sonde (64 sur
+Windows et Linux, 2 réseau) ; les autres sont évaluées par le
+questionnaire. Les IDs officiels non normalisés de la CCB
 (`ID.AM-5.1`, `DE.CM-03-1`, `ID.AM-03-2`) sont repris **tels quels** —
 ne jamais les « corriger », sous peine de diverger de l'autorité.
 
@@ -213,7 +213,8 @@ parité de calcul CCB à 100 % : agrégation hiérarchique + N/A) →
   est un trou de collecte « droits insuffisants ». Tests :
   `internal/engine/probes_shell_test.go`.
 - **Validation réelle (28/09/2026)** : Windows 11 25H2 par WinRM (NTLM,
-  compte non admin : 57/64 lisibles), Ubuntu 26.04 par SSH non root (64/64),
+  compte non admin : 59/64 lisibles), Ubuntu 26.04 par SSH non root (64/64)
+  et sondes rejouées en `nobody` (63/64),
   parité de calcul avec les trois outils Excel du CCB (méthode publiée :
   identité exacte ; classeurs publiés : anomalies de formules recensées).
   Voir `docs/methode/validation-reelle-2026-09-28.md`. Règle Windows : toute

@@ -61,10 +61,12 @@ preflight, jamais une conclusion.
 
 ### Résultat
 
-- Compte non administrateur : 57 collectes lisibles sur 64, 7 « droits
-  insuffisants » nommés (BitLocker pour PR.DS-01.6, PR.DS-02.1, PR.DS-02.2 ;
-  Device Guard pour PR.PS-01.4, PR.PS-02.1, PR.PS-05.2 ; w32tm pour
-  PR.PS-04.2). Ces trois sources exigent un administrateur local sous Windows.
+- Compte non administrateur (version finale des sondes) : 59 collectes
+  lisibles sur 64, 5 « droits insuffisants » nommés (BitLocker pour
+  PR.DS-01.6 ; Device Guard pour PR.PS-01.4, PR.PS-02.1, PR.PS-05.2 ; w32tm
+  pour PR.PS-04.2). Ces trois sources exigent un administrateur local sous
+  Windows ; la signature SMB et la stratégie BitLocker To Go se lisent sans
+  droits.
 - Compte administrateur local : 64/64.
 - Constats recoupés avec l'état relevé directement sur la machine (compte
   SYSTEM) : pare-feu actif sur les trois profils, Defender actif et à jour,
@@ -93,10 +95,40 @@ par SSH sur 127.0.0.1 avec un compte NON root, clé et démon SSH temporaires
 | Absence de Samba lue comme « flux non chiffrés » | faux négatif |
 | AppArmor compté comme allowlisting applicatif | faux positif |
 
+Contre-épreuve sans aucun groupe : chaque sonde Linux a été rejouée sur le
+même hôte avec le compte `nobody` (`sudo -u nobody`, lecture seule, sortie
+réinjectée dans ClawkWerk) : 63 collectes sur 64 aboutissent, constats recoupés ; le journal système,
+illisible sans le groupe `adm` ou `systemd-journal`, est signalé « droits
+insuffisants » au lieu d'une rétention mesurée sur un autre journal.
+
 Résultat : preflight 64/64 lisibles avec un compte non root ; constats
 recoupés un à un (ufw actif, entrée DROP ; aucun correctif en attente ;
 unattended-upgrades actif ; NTP synchronisé ; Secure Boot actif ; disque
 système non chiffré ; 17 ports TCP en écoute ; pas d'antivirus).
+
+## Revue indépendante et seconde validation
+
+Une revue de code indépendante du correctif (même jour) a relevé des sondes
+qui concluaient encore sur une valeur non mesurée. Toutes ont été corrigées,
+testées, puis revalidées sur les deux machines :
+
+- Linux : rétention lue sur le journal de l'utilisateur au lieu du journal
+  système ; supports amovibles « non chiffrés » émis en dur ; comptes système
+  comptés comme dormants par `lastlog` ; Secure Boot sans `mokutil`.
+- Windows : service arrêté (EDR, antivirus, SIEM, sauvegarde) compté comme
+  actif ; rétention prise pour une durée alors que le journal n'est pas plein
+  (borne inférieure) ; installations de pilotes prises pour des correctifs de
+  l'OS ; module BitLocker absent lu « non chiffré » ; tâches planifiées
+  invisibles à un non-administrateur lues « aucune sauvegarde planifiée » ;
+  repli WMI sans date de connexion lu « aucun compte dormant » ; W32Time
+  arrêté classé « droits insuffisants » ; classification des refus
+  dépendante de la langue ; emplacement hors-site jamais mesuré.
+- Défaut trouvé pendant la seconde validation : la fonction commune de
+  classement des erreurs (`F`) échouait elle-même sur une exception sans
+  exception interne et laissait la sonde continuer avec des valeurs par
+  défaut (Device Guard refusé lu « aucun allowlisting »). Corrigée, et son
+  comportement vérifié sur le Windows réel (refus → « ACCESS DENIED », autre
+  erreur → échec de la collecte).
 
 ## 3. Calcul : comparaison avec les outils officiels du CCB
 

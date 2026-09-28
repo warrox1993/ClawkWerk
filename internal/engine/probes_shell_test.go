@@ -353,11 +353,49 @@ func TestProbe_Backup_IgnoresDpkgDbBackup(t *testing.T) {
 	p := newProbeEnv(t)
 	p.stub("systemctl", "NEXT LEFT LAST PASSED UNIT ACTIVATES\n- - - - dpkg-db-backup.timer dpkg-db-backup.service", 0)
 	out := p.mustSucceed(controls.PRDS1101LinuxCmd)
-	if ls := strings.Fields(out); len(ls) < 2 || ls[1] != "no" {
+	// Sans planification reconnue : « no » (root) ou « unknown » (compte non
+	// root, crontab de root illisible) — jamais « yes ».
+	if ls := strings.Fields(out); len(ls) < 2 || (ls[1] != "no" && ls[1] != "unknown") {
 		t.Errorf("dpkg-db-backup compté comme sauvegarde : %q", out)
 	}
 	p.stub("systemctl", "- - - - restic-backup.timer restic-backup.service", 0)
 	if ls := strings.Fields(p.mustSucceed(controls.PRDS1101LinuxCmd)); ls[1] != "yes" {
 		t.Errorf("un vrai minuteur de sauvegarde doit être détecté : %v", ls)
+	}
+}
+
+// Revue du 28/09/2026 : lastlog liste TOUS les comptes (daemon, bin…) ; seuls
+// les comptes humains (UID 1000 à 65533, shell de connexion) comptent comme
+// dormants. Sans base de dernière connexion lisible : « unknown ».
+func TestProbe_ComptesDormants_SeulementHumains(t *testing.T) {
+	p := newProbeEnv(t)
+	p.stub("getent", "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nbin:x:2:2:bin:/bin:/usr/sbin/nologin\nalice:x:1000:1000::/home/alice:/bin/bash\nbob:x:1001:1001::/home/bob:/bin/bash\nsvc:x:1002:1002::/nonexistent:/usr/sbin/nologin", 0)
+	p.stub("lastlog", "Username         Port     From             Latest\nroot                                       **Never logged in**\ndaemon                                     **Never logged in**\nbin                                        **Never logged in**\nalice            pts/0    10.0.0.5         Mon Sep 28 10:00:00 +0200 2026\nbob                                        **Never logged in**", 0)
+	ls := strings.Fields(p.mustSucceed(controls.PRAA0501LinuxCmd))
+	if len(ls) != 2 || ls[0] != "2" || ls[1] != "1" {
+		t.Fatalf("attendu 2 comptes humains dont 1 dormant (bob), obtenu %v", ls)
+	}
+	p2 := newProbeEnv(t)
+	p2.stub("getent", "alice:x:1000:1000::/home/alice:/bin/bash", 0)
+	if ls := strings.Fields(p2.mustSucceed(controls.PRAA0501LinuxCmd)); len(ls) != 2 || ls[1] != "unknown" {
+		t.Fatalf("sans lastlog : « unknown » attendu, obtenu %v", ls)
+	}
+}
+
+// La rétention Linux se mesure sur le journal SYSTÈME (--system) : un compte
+// sans accès au journal système donne un refus, pas l'âge de son propre journal.
+func TestProbe_Journalisation_JournalSysteme(t *testing.T) {
+	if !strings.Contains(shLogging, "journalctl --system") {
+		t.Fatal("shLogging doit lire le journal système (--system)")
+	}
+	p := newProbeEnv(t)
+	p.stub("systemctl", "active", 0)
+	p.stubScript("journalctl", `case "$*" in *--system*) echo "No journal files were opened due to insufficient permissions." >&2; exit 1;; *) echo "1790000000.000000 host sshd[1]: user journal"; ;; esac`)
+	out := p.mustSucceed(shLogging)
+	if !strings.Contains(out, "insufficient permissions") {
+		t.Fatalf("refus du journal système attendu dans la sortie : %q", out)
+	}
+	if privilegeGap([]byte(out)) == "" {
+		t.Fatalf("le refus doit être classé « droits insuffisants » : %q", out)
 	}
 }

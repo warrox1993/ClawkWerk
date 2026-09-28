@@ -31,7 +31,7 @@ type LogMgmtEvidence struct {
 // audit_enabled via Get-WinEvent (journal Sécurité activé, booléen NEUTRE) au lieu
 // de parser auditpol (traduit). log_forwarding : la donnée de registre "Server=..."
 // est une chaîne de config neutre. SIEM : noms de services (invariants).
-const LogMgmtWinCmd = WinPre + `try{$sec=(Get-WinEvent -ListLog Security -EA Stop).IsEnabled}catch{F 'journal Security (groupe Lecteurs des journaux)' $_}; $fwd=[bool](Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\EventForwarding\SubscriptionManager' -EA SilentlyContinue); $re='splunk|Wazuh|nxlog|Sysmon|MMAExtension|AzureMonitorAgent|HealthService|winlogbeat|elastic-agent|fluent'; ` + WinAutoServices + `[pscustomobject]@{audit_enabled=[bool]$sec; log_forwarding=$fwd; siem_present=($S.Count -gt 0)}|ConvertTo-Json`
+const LogMgmtWinCmd = WinPre + `try{$sec=(Get-WinEvent -ListLog Security -EA Stop).IsEnabled}catch{F 'journal Security (groupe Lecteurs des journaux)' $_}; $sm=Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\EventForwarding\SubscriptionManager' -EA SilentlyContinue; $fwd=($sm -ne $null) -and (@($sm.PSObject.Properties|?{$_.Name -notlike 'PS*'}).Count -gt 0); $re='splunk|Wazuh|nxlog|Sysmon|MMAExtension|AzureMonitorAgent|HealthService|winlogbeat|elastic-agent|fluent'; ` + WinAutoServices + `[pscustomobject]@{audit_enabled=[bool]$sec; log_forwarding=$fwd; siem_present=($S.Count -gt 0)}|ConvertTo-Json`
 
 // LogMgmtLinuxCmd : collecte Linux LECTURE SEULE, émet 3 lignes yes/no :
 // audit/journalisation actif ; transfert rsyslog distant configuré ; agent SIEM présent.

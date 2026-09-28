@@ -105,11 +105,11 @@ func evaluateAccessReview(host assess.HostRef, ev AccessReviewEvidence) assess.H
 // PRAA0501WinCmd : collecte Windows LECTURE SEULE, émet du JSON. Get-LocalUser,
 // avec repli WMI Win32_UserAccount pour compatibilité Windows 7. Compte les
 // comptes activés n'ayant jamais eu de LastLogon (dormants).
-const PRAA0501WinCmd = WinPre + `try{$all=@(Get-LocalUser -EA Stop)}catch{try{$all=@(Get-WmiObject Win32_UserAccount -Filter "LocalAccount=True" -EA Stop)}catch{F 'comptes locaux' $_}}; $inactive=@($all|?{$_.Enabled -and -not $_.LastLogon -and "$($_.PrincipalSource)" -notmatch 'MicrosoftAccount|AzureAD'}).Count; [pscustomobject]@{inactive_accounts=$inactive; total_local_accounts=$all.Count}|ConvertTo-Json`
+const PRAA0501WinCmd = WinPre + `$inactive=$null; try{$all=@(Get-LocalUser -EA Stop); $inactive=@($all|?{$_.Enabled -and -not $_.LastLogon -and "$($_.PrincipalSource)" -notmatch 'MicrosoftAccount|AzureAD'}).Count}catch{try{$all=@(Get-WmiObject Win32_UserAccount -Filter "LocalAccount=True" -EA Stop)}catch{F 'comptes locaux' $_}}; [pscustomobject]@{inactive_accounts=$inactive; total_local_accounts=$all.Count}|ConvertTo-Json`
 
 // PRAA0501LinuxCmd : collecte Linux LECTURE SEULE, émet 2 lignes : nombre de
 // comptes humains (UID 1000..65533), puis nombre de comptes jamais connectés.
-const PRAA0501LinuxCmd = `export LC_ALL=C; getent passwd 2>/dev/null | awk -F: '$3>=1000 && $3<65534 && $7 !~ /(nologin|false)$/ {c++} END{print c+0}'; if command -v lastlog2 >/dev/null 2>&1; then lastlog2 2>/dev/null | awk 'NR>1 && /Never logged in/ {c++} END{print c+0}'; elif command -v lastlog >/dev/null 2>&1; then lastlog 2>/dev/null | awk 'NR>1 && /Never logged in/ {c++} END{print c+0}'; else echo unknown; fi`
+const PRAA0501LinuxCmd = `export LC_ALL=C; U=$(getent passwd 2>/dev/null | awk -F: '$3>=1000 && $3<65534 && $7 !~ /(nologin|false)$/ {print $1}'); printf '%s\n' "$U" | grep -c . ; if command -v lastlog2 >/dev/null 2>&1; then L=$(lastlog2 2>/dev/null) || L=; elif command -v lastlog >/dev/null 2>&1; then L=$(lastlog 2>/dev/null) || L=; else L=; fi; if [ -z "$L" ]; then echo unknown; else printf '%s\n' "$L" | awk -v u="$U" 'BEGIN{n=split(u,a,"\n"); for(i=1;i<=n;i++) h[a[i]]=1} NR>1 && ($1 in h) && /Never logged in/ {c++} END{print c+0}'; fi`
 
 // --- Normalisation brut → AccessReviewEvidence ---
 
@@ -129,6 +129,9 @@ func AccessReviewWindowsNormalizer(raw []byte) (json.RawMessage, error) {
 	return json.Marshal(AccessReviewEvidence{
 		InactiveAccounts:   derefInt(w.InactiveAccounts),
 		TotalLocalAccounts: derefInt(w.TotalLocalAccounts),
+		// Repli WMI (Windows 7) : Win32_UserAccount n'expose pas la dernière
+		// connexion ; la dormance n'est alors pas mesurée.
+		InactiveUnknown: w.InactiveAccounts == nil,
 	})
 }
 

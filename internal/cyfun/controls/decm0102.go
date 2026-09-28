@@ -23,6 +23,9 @@ type AntivirusEvidence struct {
 	// DefinitionsAgeUnknown : l'âge des définitions n'a pas pu être lu (produit
 	// tiers repéré par son service). Jamais converti en « 0 jour ».
 	DefinitionsAgeUnknown bool `json:"definitions_age_unknown,omitempty"`
+	// RealtimeUnknown : l'état de la protection en temps réel n'est pas lisible
+	// (produit tiers repéré par son service). Jamais lu comme « désactivée ».
+	RealtimeUnknown bool `json:"realtime_unknown,omitempty"`
 }
 
 // DECM0102Meta : métadonnées officielles du contrôle (texte exact du CCB).
@@ -83,6 +86,7 @@ func AntivirusWindowsNormalizer(raw []byte) (json.RawMessage, error) {
 		Product:               product,
 		DefinitionsAgeDays:    derefInt(d.AntivirusSignatureAge),
 		DefinitionsAgeUnknown: d.AntivirusSignatureAge == nil,
+		RealtimeUnknown:       d.RealTimeProtectionEnabled == nil && derefBool(d.AntivirusEnabled),
 	})
 }
 
@@ -211,6 +215,9 @@ func evaluateAntivirus(host assess.HostRef, ev AntivirusEvidence) assess.HostAss
 	case ev.DefinitionsAgeDays > defsStaleDays:
 		lvl, f.Status = cyfun.Repeatable, assess.StatusPartial
 		f.Message = fmt.Sprintf("Définitions périmées (%d j > %d j).", ev.DefinitionsAgeDays, defsStaleDays)
+	case ev.RealtimeUnknown:
+		lvl, f.Status = cyfun.Defined, assess.StatusPass
+		f.Message = fmt.Sprintf("Anti-malware %q en fonctionnement ; protection en temps réel et âge des définitions non lisibles à distance (à attester).", ev.Product)
 	case !ev.RealtimeProtection:
 		lvl, f.Status = cyfun.Repeatable, assess.StatusPartial
 		f.Message = "Protection en temps réel désactivée."

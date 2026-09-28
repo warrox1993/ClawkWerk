@@ -23,17 +23,24 @@ package controls
 //   - toute autre erreur : message sur stderr et code de sortie 1, donc
 //     « collecte échouée », jamais un constat.
 //
+// F ne doit JAMAIS échouer elle-même : un appel de méthode sur une valeur nulle
+// y produisait une erreur non bloquante, F rendait la main et la sonde
+// poursuivait avec des valeurs par défaut (constaté le 28/09/2026 sur Device
+// Guard). Toute l'introspection de l'exception est donc protégée par try/catch,
+// et la chaîne de repli est le texte brut de l'erreur.
+//
 // Les sondes privilégient ensuite des sources lisibles SANS droits
 // d'administration (registre, journaux d'événements, .NET) et n'utilisent
 // WMI/CIM qu'en premier essai.
 const WinPre = `$ProgressPreference='SilentlyContinue'; ` +
-	`function F($w,$e){if("$($e.Exception.HResult) $($e.Exception.Message) $($e.Exception.InnerException.Message)" -match '2147024891|0x80070005|0x80041003|denied|refus|autoris|unauthori|verweigert|geweigerd'){"ACCESS DENIED: $w";exit 0};[Console]::Error.WriteLine("PROBE ERROR: $w : $($e.Exception.Message)");exit 1}; `
+	`function F($w,$e){$s="$e"; try{$x=$e.Exception; $s="$($x.GetType().FullName) $($x.HResult) $($x.Message)"; $i=$x.InnerException; if($i){$s+=" $($i.GetType().FullName) $($i.HResult) $($i.Message)"}}catch{}; if($s -match 'UnauthorizedAccess|SecurityException|2147024891|2147217405|0x80070005|0x80041003|denied|not allowed|refus|autoris|unauthori|verweigert|nicht zul|geweigerd|niet toegestaan'){"ACCESS DENIED: $w";exit 0};[Console]::Error.WriteLine("PROBE ERROR: $w : $s");exit 1}; `
 
-// WinAutoServices renvoie (dans $S) les services dont le NOM correspond à
-// l'expression régulière $re et qui démarrent automatiquement (Start 0, 1 ou 2),
-// lus dans le registre : l'énumération du gestionnaire de services (Get-Service)
-// est refusée à une session réseau non administrateur. Un service installé mais
-// en démarrage manuel ou désactivé (ex. wbengine, Sense non intégré, WdNisSvc)
-// n'est PAS compté comme un agent déployé.
-const WinAutoServices = `try{$K=Get-ChildItem HKLM:\SYSTEM\CurrentControlSet\Services -EA Stop}catch{F 'registre des services' $_}; ` +
-	`$S=@($K|?{$_.PSChildName -match $re}|?{$st=(Get-ItemProperty $_.PSPath -EA SilentlyContinue).Start; $st -ne $null -and $st -le 2}|%{$_.PSChildName}); `
+// WinAutoServices range dans $S les services dont le NOM correspond à
+// l'expression régulière $re, qui démarrent automatiquement (Start 0, 1 ou 2,
+// lu dans le registre : l'énumération Get-Service est refusée à une session
+// réseau non administrateur) ET qui tournent (Get-Service <nom>, autorisé) ;
+// dans $X ceux qui démarrent automatiquement mais sont ARRÊTÉS (agent en panne
+// ou arrêté par un attaquant : jamais compté comme actif). Un état illisible
+// fait échouer la sonde (fonction F) plutôt que d'être supposé.
+const WinAutoServices = `try{$K=Get-ChildItem HKLM:\SYSTEM\CurrentControlSet\Services -EA Stop}catch{F 'registre des services' $_}; $S=@(); $X=@(); ` +
+	`foreach($k in @($K|?{$_.PSChildName -match $re})){$st=(Get-ItemProperty $k.PSPath -EA SilentlyContinue).Start; if($st -ne $null -and $st -le 2){try{$v=Get-Service -Name $k.PSChildName -EA Stop}catch{F "etat du service $($k.PSChildName)" $_}; if("$($v.Status)" -eq 'Running'){$S+=$k.PSChildName}else{$X+=$k.PSChildName}}}; `

@@ -164,15 +164,15 @@ Droits minimaux constatés sur Windows 11 : compte non administrateur membre de
 « Utilisateurs de gestion à distance » et « Lecteurs des journaux
 d'événements », ce groupe étant autorisé dans le descripteur racine de WinRM
 (détail dans [la validation](docs/methode/validation-reelle-2026-09-28.md)).
-Avec ce compte, 57 des 64 collectes Windows aboutissent ; BitLocker, Device
-Guard et `w32tm` exigent un administrateur local, et `-preflight` les signale
-comme « droits insuffisants » plutôt que d'en tirer une conclusion.
+Avec ce compte, 59 des 64 collectes Windows aboutissent ; l'état BitLocker,
+Device Guard et `w32tm` exigent un administrateur local, et `-preflight` les
+signale comme « droits insuffisants » plutôt que d'en tirer une conclusion.
 
 ![Questionnaire web local](docs/captures/questionnaire.png)
 
 ## Tests
 
-- 399 tests et 282 sous-tests, tous verts, avec et sans `-tags history`, et
+- 411 tests et 282 sous-tests, tous verts, avec et sans `-tags history`, et
   sous le détecteur de courses (`-race`).
 - Tests de propriété sur le calcul de maturité, verdicts de référence,
   fuzzing des normaliseurs (aucune panique sur entrée arbitraire).
@@ -198,11 +198,16 @@ caractère statique et reproductible des binaires.
 Détail et preuves : [docs/methode/validation-reelle-2026-09-28.md](docs/methode/validation-reelle-2026-09-28.md).
 
 - Windows 11 Pro 25H2 (fr-BE), par WinRM HTTPS avec un compte non
-  administrateur : les 64 sondes s'exécutent, 57 aboutissent et 7 sont
+  administrateur : les 64 sondes s'exécutent, 59 aboutissent et 5 sont
   signalées « droits insuffisants » ; 64/64 avec un administrateur local.
-  Constats recoupés avec l'état réel de la machine. Douze défauts corrigés.
-- Ubuntu 26.04, par SSH avec un compte non root : 64/64 collectes, constats
-  recoupés un à un. Neuf défauts corrigés.
+  Constats recoupés avec l'état réel de la machine.
+- Ubuntu 26.04 : par SSH avec un compte non root, puis chaque sonde rejouée
+  avec le compte `nobody` (aucun groupe) : constats recoupés un à un ; seul le
+  journal système reste illisible sans groupe, signalé « droits
+  insuffisants ».
+- Une revue de code indépendante a relevé les sondes qui concluaient encore
+  sur une valeur non mesurée ; toutes ont été corrigées et revalidées sur les
+  deux machines.
 - Calcul : mêmes notes saisies dans ClawkWerk et dans les trois outils
   d'auto-évaluation du CCB (recalcul LibreOffice), quatre jeux par niveau.
   Identité exacte avec la méthode publiée par le CCB ; verdict identique aux

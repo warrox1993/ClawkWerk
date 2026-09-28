@@ -68,6 +68,9 @@ type winUpdateRaw struct {
 	Pending *int  `json:"pending"`
 	Auto    *bool `json:"auto"`
 	Days    *int  `json:"days_since_last_install"`
+	// NoneFor : aucune installation de correctif OS (KB) dans le journal System,
+	// qui couvre ce nombre de jours (âge de son plus ancien événement).
+	NoneFor *int `json:"no_os_update_for_days"`
 }
 
 // PatchWindowsNormalizer mappe la sortie Windows. Il faut au moins une mesure :
@@ -79,7 +82,16 @@ func PatchWindowsNormalizer(raw []byte) (json.RawMessage, error) {
 	if err := json.Unmarshal(raw, &w); err != nil {
 		return nil, fmt.Errorf("sortie Windows Update illisible : %w", err)
 	}
+	if w.Pending == nil && w.Days == nil && w.NoneFor != nil && *w.NoneFor > patchesStaleDays {
+		// Aucun correctif OS installé sur toute la période couverte par le
+		// journal (plus de 60 j) : c'est une borne inférieure de l'ancienneté,
+		// suffisante pour conclure au retard.
+		w.Days = w.NoneFor
+	}
 	if w.Pending == nil && w.Days == nil {
+		if w.NoneFor != nil {
+			return nil, fmt.Errorf("aucun correctif OS journalisé sur les %d j conservés par le journal System : ancienneté non mesurable", *w.NoneFor)
+		}
 		return nil, errors.New("ni correctifs en attente ni installation de correctif OS journalisée : état des correctifs non mesurable")
 	}
 	return json.Marshal(PatchEvidence{

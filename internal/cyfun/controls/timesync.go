@@ -37,7 +37,7 @@ type TimeSyncEvidence struct {
 // System (événements 35/37) n'est pas un substitut fiable : constaté le
 // 28/09/2026, des données valides reçues (37) coexistaient avec une horloge
 // jamais synchronisée selon w32tm.
-const TimeSyncWinCmd = WinPre + `$s=(w32tm /query /source 2>&1) -join ''; if($LASTEXITCODE -ne 0 -or $s -match '0x8007'){'ACCESS DENIED: w32tm (etat de synchronisation lisible par un administrateur seulement)'; exit 0}; [pscustomobject]@{source=$s.Trim()}|ConvertTo-Json`
+const TimeSyncWinCmd = WinPre + `$s=(w32tm /query /source 2>&1) -join ''; $c=$LASTEXITCODE; if($s -match '0x80070005|denied|refus|verweigert|geweigerd'){'ACCESS DENIED: w32tm (etat de synchronisation lisible par un administrateur seulement)'; exit 0}; if($s -match '0x80070426'){$s='service W32Time arrete'}elseif($c -ne 0){[Console]::Error.WriteLine("PROBE ERROR: w32tm : $s"); exit 1}; [pscustomobject]@{source=$s.Trim()}|ConvertTo-Json`
 
 // TimeSyncLinuxCmd : collecte Linux LECTURE SEULE, émet 2 lignes : « yes »/« no »
 // selon l'état de synchronisation (timedatectl, avec repli chronyc), puis la
@@ -126,7 +126,8 @@ func TimeSyncWindowsNormalizer(raw []byte) (json.RawMessage, error) {
 		return nil, fmt.Errorf("source de temps illisible : %q", src)
 	}
 	return json.Marshal(TimeSyncEvidence{
-		Synchronized: strings.Contains(src, "."),
+		// « VM IC Time Synchronization Provider » : invité Hyper-V synchronisé par son hôte.
+		Synchronized: strings.Contains(src, ".") || strings.Contains(src, "VM IC Time Synchronization Provider"),
 		Source:       src,
 	})
 }
