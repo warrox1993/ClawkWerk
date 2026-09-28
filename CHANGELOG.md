@@ -3,6 +3,53 @@
 Format inspiré de « Keep a Changelog ». Les chiffres sont mesurés sur le code
 de la version concernée.
 
+## [1.1.0] - 2026-09-28
+
+Validation en conditions réelles : Windows 11, Ubuntu 26.04 et comparaison
+avec les outils d'auto-évaluation du CCB. Détail et preuves :
+`docs/methode/validation-reelle-2026-09-28.md`.
+
+### Ajouté
+
+- WinRM : authentification NTLM, par défaut (`-winrm-auth ntlm|basic`), et
+  vérification du certificat de l'hôte par l'autorité du client
+  (`-winrm-ca`). Le texte des fautes WS-Management est remonté.
+- Maturité par catégorie (Documentation, Implementation, catégorie) dans la
+  synthèse et les rapports JSON, HTML, XLSX et PDF, comme l'onglet Summary de
+  l'outil officiel.
+- Préflight Windows : la ressource refusée est nommée (BitLocker, Device
+  Guard, w32tm, journaux…).
+- Banc de parité reproductible avec les outils officiels et recensement des
+  anomalies de leurs formules (`docs/methode/validation/`).
+- Licence PolyForm Noncommercial 1.0.0 et fichier NOTICE (textes CyFun
+  propriété du CCB).
+
+### Corrigé
+
+- Sondes Windows : les refus d'accès d'un compte non administrateur ne
+  produisent plus de conclusions fausses (BitLocker, Secure Boot, services,
+  capacité disque, horloge) ; sources lisibles sans droits d'administration
+  (registre, journaux, .NET) ; rétention des journaux mesurée ; correctifs
+  mesurés par l'ancienneté du dernier correctif installé ; faux positifs
+  sauvegarde, EDR, allowlisting et comptes dormants supprimés ; pare-feu
+  d'origine (`NotConfigured`) reconnu comme bloquant ; `net accounts` lu dans
+  la page de codes OEM ; garde de longueur de ligne de commande.
+- Sondes Linux : pare-feu ufw constaté par sa configuration sans root,
+  rétention mesurée, politique PAM effective, état de root et dernière
+  connexion déclarés « non lisibles » au lieu d'être supposés, sauvegardes
+  par timers systemd et Timeshift, AppArmor n'est plus compté comme
+  allowlisting, autorun et chiffrement en transit non inventés.
+- Calcul : ID.AM-03-2 rattachée à la sous-catégorie ID.AM-03 (faussait la
+  maturité ID.AM au niveau Essential).
+- Textes : DE.AE-03.1 et GV.OC-03.2 alignés sur la version la plus récente.
+- Mention légale : ni vérification, ni certification CyFun, ni présomption
+  de conformité NIS2 ; CAB accrédité par BELAC et autorisé par le CCB.
+- XLSX : un audit incomplet n'est plus affiché « NON CONFORME ».
+
+### Mesures
+
+- 399 tests et 282 sous-tests.
+
 ## [1.0.0] - 2026-09-28
 
 Première version publiée avec intégration continue et binaires.

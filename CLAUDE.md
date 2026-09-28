@@ -3,11 +3,15 @@
 ## Vue d'ensemble
 Application d'audit et de remédiation en cybersécurité pour PME belges,
 basée sur le référentiel officiel CyFun (CyberFundamentals, CCB Belgique),
-lui-même aligné sur NIST CSF 2.0. S'inscrit dans la conformité NIS2
-(loi belge du 26 avril 2024).
+lui-même aligné sur NIST CSF 2.0. Référentiel recommandé par le CCB pour
+mettre en œuvre la loi NIS2 belge (loi du 26 avril 2024, arrêté royal du
+9 juin 2024) ; ISO/IEC 27001 est l'autre voie reconnue.
 
 ## Positionnement légal
-- PAS un organisme de certification (réservé aux CAB accrédités BELAC).
+- PAS un organisme d'évaluation de la conformité : la vérification CyFun
+  (Basic, Important), la certification CyFun (Essential) et donc la
+  présomption de conformité NIS2 viennent d'un CAB accrédité par BELAC ET
+  autorisé par le CCB (source : atwork.safeonweb.be/nis2).
 - Rôle : "préparateur à la conformité" — auto-évaluation assistée +
   remédiation, jamais de certification officielle délivrée.
 - Toute sortie/rapport doit mentionner explicitement cette distinction.
@@ -208,6 +212,15 @@ parité de calcul CCB à 100 % : agrégation hiérarchique + N/A) →
   sont deux cas distincts : le premier peut être une non-conformité, le second
   est un trou de collecte « droits insuffisants ». Tests :
   `internal/engine/probes_shell_test.go`.
+- **Validation réelle (28/09/2026)** : Windows 11 25H2 par WinRM (NTLM,
+  compte non admin : 57/64 lisibles), Ubuntu 26.04 par SSH non root (64/64),
+  parité de calcul avec les trois outils Excel du CCB (méthode publiée :
+  identité exacte ; classeurs publiés : anomalies de formules recensées).
+  Voir `docs/methode/validation-reelle-2026-09-28.md`. Règle Windows : toute
+  sonde commence par `controls.WinPre` ; un refus d'accès n'est JAMAIS une
+  conclusion.
+- **Licence** : PolyForm Noncommercial 1.0.0 (code) ; textes CyFun propriété
+  du CCB (NOTICE). Ne pas présenter le projet comme « open source ».
 - **Reste** : valider les adaptateurs réseau sur matériel réel ; produire/booter
   l'ISO live (recette dans `live/`, jamais démarrée) ; commandes Windows
   downlevel *réelles* pour Win7 (aujourd'hui gérées par repli + couverture).
