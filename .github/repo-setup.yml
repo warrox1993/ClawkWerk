@@ -1,0 +1,91 @@
+# repo-setup.yml — configuration GitHub attendue par les skills du kit Tagout (Philippe Matray).
+#
+# Lu par `tagout:setup-repo` (`repo-setup.sh plan` montre l'écart, `apply` le résorbe) de
+# préférence au manifeste livré avec le kit, pour que la taxonomie de ce dépôt survive aux mises
+# à jour du kit. Règles : additif (un label absent d'ici est gardé), aucun formulaire écrasé,
+# `--prune` jamais par défaut.
+#
+# Les noms des axes type / priority / effort sont ceux du kit, gardés tels quels : les skills
+# (`create-issue`, `auto-dev`) les appliquent mot pour mot, et `auto-dev` classe l'effort dans
+# l'ORDRE de déclaration ci-dessous (du plus petit au plus grand).
+
+labels:
+  # ------------------------------------------------------------------ type
+  - name: "bug"
+    color: "d73a4a"
+    description: "Something isn't working"
+  - name: "enhancement"
+    color: "a2eeef"
+    description: "New feature or request"
+  - name: "documentation"
+    color: "0075ca"
+    description: "Improvements or additions to documentation"
+
+  # -------------------------------------------------------------- priority
+  - name: "priority: high"
+    color: "b60205"
+    description: "À traiter avant les autres niveaux"
+  - name: "priority: medium"
+    color: "d93f0b"
+    description: "Niveau par défaut : utile, pas urgent"
+  - name: "priority: low"
+    color: "fbca04"
+    description: "Quand la file est vide par ailleurs"
+
+  # ---------------------------------------------------------------- effort (du plus petit au plus grand)
+  - name: "effort: small"
+    color: "c2e0c6"
+    description: "Une tâche, un cycle de test"
+  - name: "effort: medium"
+    color: "bfd4f2"
+    description: "Quelques tâches dans une seule couche"
+  - name: "effort: large"
+    color: "5319e7"
+    description: "Plusieurs couches ou par étapes : plusieurs commits"
+
+  # ------------------------------------------------------------------ area (une par zone du code ;
+  # c'est l'axe qu'`auto-dev` lit pour donner à chaque agent une zone qui ne chevauche pas les autres)
+  - name: "area: orchestrator"
+    color: "c5def5"
+    description: "Binaire d'audit (cmd/orchestrator) : drapeaux, transports, preflight"
+  - name: "area: questionnaire"
+    color: "c5def5"
+    description: "Questionnaire web CyFun (cmd/questionnaire, internal/survey, internal/web)"
+  - name: "area: controls"
+    color: "c5def5"
+    description: "Contrôles et normaliseurs CyFun (internal/cyfun)"
+  - name: "area: engine"
+    color: "c5def5"
+    description: "Moteur : périmètre, sessions, collecte, scan, évaluation, risque (internal/*)"
+  - name: "area: report"
+    color: "c5def5"
+    description: "Rapport final et journal d'audit (internal/report, internal/audit, internal/store)"
+  - name: "area: live"
+    color: "c5def5"
+    description: "Recette de la clé bootable live (live/)"
+  - name: "area: docs"
+    color: "c5def5"
+    description: "README, CHANGELOG, CLAUDE.md et docs/"
+  - name: "area: ci"
+    color: "c5def5"
+    description: "Intégration continue, publication des binaires, Makefile"
+
+# Labels que `--prune` ne supprime jamais : ils appartiennent à un outil.
+pruneKeep:
+  - "autorelease: *"
+  - "dependencies"
+
+issueTemplates:
+  - feature_request.yml
+  - bug_report.yml
+
+settings:
+  # Supprime la branche distante après fusion (sinon chaque fusion faite depuis une worktree du
+  # kit laisse traîner la branche, voir tagout#185).
+  delete_branch_on_merge: true
+  # ÉCART ASSUMÉ AVEC LE KIT (qui veut « squash » seul) : la PR #1 a été fusionnée en commit de
+  # fusion normal, comme Batte et Palier, pour garder l'historique détaillé. On le garde autorisé,
+  # et le profil déclare « Merge mode: merge ». Rebase désactivé comme dans le kit.
+  allow_squash_merge: true
+  allow_merge_commit: true
+  allow_rebase_merge: false
