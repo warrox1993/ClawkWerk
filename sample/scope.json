@@ -4,6 +4,7 @@
   "hosts": [
     {"id": "ACME-PC01", "os": "windows", "role": "workstation", "address": "acme-pc01.acme.lan", "transport": "winrm", "port": 5986, "cred_ref": "svc-audit-ro"},
     {"id": "ACME-SRV01", "os": "windows", "role": "server", "address": "acme-srv01.acme.lan", "transport": "winrm", "port": 5986, "cred_ref": "svc-audit-ro"},
+    {"id": "ACME-LNX01", "os": "linux", "role": "server", "address": "acme-lnx01.acme.lan", "transport": "ssh", "port": 22, "cred_ref": "svc-linux-ro"},
     {"id": "ACME-FW01", "os": "routeros", "role": "firewall", "address": "acme-fw01.acme.lan", "transport": "ssh", "port": 22, "cred_ref": "svc-audit-ro"}
   ]
 }

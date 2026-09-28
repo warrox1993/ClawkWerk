@@ -1,0 +1,6 @@
+# outils
+outil: ufw
+outil: iptables
+# etat
+illisible: ufw
+illisible: iptables
