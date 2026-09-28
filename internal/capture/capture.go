@@ -38,7 +38,7 @@ func NewFileSink(dir string) (*FileSink, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("capture: création du répertoire : %w", err)
 	}
-	readme := "# Captures brutes de collecte (projetCyber)\n\n" +
+	readme := "# Captures brutes de collecte (ClawkWerk)\n\n" +
 		"Sorties BRUTES par sonde/hôte, destinées à devenir des fixtures golden.\n" +
 		"REDACTION best-effort (IPv4/MAC masquées) — NON exhaustive.\n" +
 		"⚠️ RELIRE et anonymiser (noms d'utilisateurs/machines) AVANT tout commit (RGPD).\n"

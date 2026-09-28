@@ -1,21 +1,21 @@
 [Unit]
-Description=projetCyber — questionnaire d'audit CyFun (localhost strict)
+Description=ClawkWerk — questionnaire d'audit CyFun (localhost strict)
 After=network.target
-Documentation=file:/opt/projetcyber
+Documentation=file:/opt/clawkwerk
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/projetcyber
+WorkingDirectory=/opt/clawkwerk
 # Écoute sur 127.0.0.1:8099 (loopback strict, jamais exposé au réseau).
 # Sortie des réponses dans un tmpfs (/run) : rien ne survit au redémarrage.
-RuntimeDirectory=projetcyber
-ExecStart=/opt/projetcyber/questionnaire -out /run/projetcyber/responses.json
+RuntimeDirectory=clawkwerk
+ExecStart=/opt/clawkwerk/questionnaire -out /run/clawkwerk/responses.json
 Restart=on-failure
 # Durcissement minimal : pas de privilèges superflus, pas d'écriture système.
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/run/projetcyber
+ReadWritePaths=/run/clawkwerk
 
 [Install]
 WantedBy=multi-user.target

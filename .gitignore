@@ -5,9 +5,9 @@
 
 # Artefacts live-boot
 /live/live-image*
-/live/config/includes.chroot/opt/projetcyber/orchestrator
-/live/config/includes.chroot/opt/projetcyber/questionnaire
-/live/config/includes.chroot/opt/projetcyber/sample/
+/live/config/includes.chroot/opt/clawkwerk/orchestrator
+/live/config/includes.chroot/opt/clawkwerk/questionnaire
+/live/config/includes.chroot/opt/clawkwerk/sample/
 /live/.build/
 /live/chroot/
 *.iso

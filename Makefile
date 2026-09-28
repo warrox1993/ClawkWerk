@@ -1,4 +1,4 @@
-# projetCyber — cibles de développement et de build.
+# ClawkWerk — cibles de développement et de build.
 # Le build est STATIQUE (CGo-free) et REPRODUCTIBLE (-trimpath, buildid vidé) :
 # indispensable pour un binaire qui touche des réseaux clients.
 
