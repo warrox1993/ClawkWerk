@@ -15,7 +15,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/warrox1993/clawkwerk/internal/assess"
 	"github.com/warrox1993/clawkwerk/internal/audit"
 	"github.com/warrox1993/clawkwerk/internal/capture"
 	"github.com/warrox1993/clawkwerk/internal/engine"
@@ -26,6 +25,7 @@ import (
 )
 
 func main() {
+	scopePath := flag.String("scope", "./sample/scope.json", "périmètre d'audit fourni par le client (JSON : client, machines, transports)")
 	evidenceDir := flag.String("evidence", "./sample/evidence", "répertoire des preuves collectées (mode FileSource)")
 	responsesPath := flag.String("responses", "./sample/responses.json", "réponses au questionnaire déclaratif (JSON)")
 	outPath := flag.String("out", "", "chemin d'export du rapport JSON (défaut : stdout)")
@@ -62,38 +62,23 @@ func main() {
 
 	started := time.Now()
 
-	// Périmètre FOURNI explicitement — aucune découverte réseau.
-	sc := scope.AuditScope{
-		ClientRef:  "ACME SPRL",
-		ProvidedBy: "DSI client",
-		ProvidedAt: started,
-		Hosts: []scope.ScopedHost{
-			{Ref: assess.HostRef{ID: "ACME-PC01", OS: "windows", Role: "workstation"}, Address: "acme-pc01.acme.lan", Transport: scope.WinRM, Port: 5986, CredRef: "svc-audit-ro"},
-			{Ref: assess.HostRef{ID: "ACME-SRV01", OS: "windows", Role: "server"}, Address: "acme-srv01.acme.lan", Transport: scope.WinRM, Port: 5986, CredRef: "svc-audit-ro"},
-			// Équipement réseau : un firewall MikroTik (plateforme "routeros"),
-			// accédé en SSH lecture seule. Seuls les contrôles réseau lui
-			// s'appliquent ; les contrôles Windows/Linux le marquent « N/A ».
-			{Ref: assess.HostRef{ID: "ACME-FW01", OS: "routeros", Role: "firewall"}, Address: "acme-fw01.acme.lan", Transport: scope.SSH, Port: 22, CredRef: "svc-audit-ro"},
-		},
+	// Périmètre FOURNI explicitement par le client (fichier -scope) — aucune
+	// découverte réseau. L'exemple livré (sample/scope.json) sert à la démo.
+	sc, err := loadScope(*scopePath, started)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
 	}
 
-	// Credentials FOURNIS par le client. En mode remote, ils sont chargés depuis
-	// un fichier (jamais générés, jamais persistés ailleurs qu'en RAM). Sans
-	// fichier, on retombe sur un credential de démo (utile en mode file, où
-	// aucune connexion n'est établie). Le secret n'est pas sérialisable et est
-	// effacé (Zero) en fin de session.
-	var creds map[string]*scope.Credential
-	var err error
-	if *credsPath != "" {
-		creds, err = loadCreds(*credsPath)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "erreur de lecture des credentials :", err)
-			os.Exit(1)
-		}
-	} else {
-		creds = map[string]*scope.Credential{
-			"svc-audit-ro": scope.NewCredential("svc-audit-ro", "svc-audit-ro@acme.lan", []byte("demo-not-a-real-secret")),
-		}
+	// Credentials FOURNIS par le client. En mode remote ils sont OBLIGATOIRES
+	// (fichier -creds, jamais générés, jamais persistés ailleurs qu'en RAM). En
+	// mode file, aucune connexion n'est établie : un credential factice par
+	// référence du périmètre suffit à la traçabilité du journal. Le secret n'est
+	// pas sérialisable et est effacé (Zero) en fin de session.
+	creds, err := resolveCreds(*transport, *credsPath, sc)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
 	}
 	defer func() {
 		for _, c := range creds {
@@ -108,12 +93,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	controlsReg := engine.ControlsForLevel(auditLevel)
+
+	// Preflight : reconnaissance du périmètre de droits (lecture seule) AVANT
+	// l'audit. On teste ce que le compte de service peut lire, on l'affiche, et on
+	// quitte — pour provisionner le compte une fois, après quoi les runs sont
+	// autonomes. Aucune élévation n'est jamais tentée (règle absolue). Le
+	// questionnaire n'intervient pas ici.
+	if *preflight {
+		pre := &engine.Engine{Source: src, Journal: audit.NewMemoryJournal(), Creds: creds, Controls: controlsReg}
+		printPreflight(pre.Preflight(context.Background(), sc))
+		return
+	}
+
 	// Questionnaire : on construit le catalogue depuis le registre, on charge
 	// les réponses du consultant, et on en dérive les deux axes déclaratifs.
 	// Séparation stricte : Documentation (tous contrôles) + Implementation
 	// (contrôles déclaratifs uniquement) viennent d'ici ; le scan n'alimente
 	// que l'Implementation des contrôles scannables.
-	controlsReg := engine.ControlsForLevel(auditLevel)
 	questionnaire := survey.New(engine.AllQuestions(controlsReg), nil)
 	responses, err := loadResponses(*responsesPath)
 	if err != nil {
@@ -156,22 +153,15 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Capture des sorties brutes activée → %s (RGPD : relire/anonymiser avant tout commit)\n", *captureDir)
 	}
 
-	// Preflight : reconnaissance du périmètre de droits (lecture seule) AVANT
-	// l'audit. On teste ce que le compte de service peut lire, on l'affiche, et on
-	// quitte — pour provisionner le compte une fois, après quoi les runs sont
-	// autonomes. Aucune élévation n'est jamais tentée (règle absolue).
-	if *preflight {
-		printPreflight(eng.Preflight(context.Background(), sc))
-		return
-	}
-
 	results, err := eng.Run(context.Background(), sc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "erreur d'exécution :", err)
 		os.Exit(1)
 	}
 
-	sess := session.NewAtLevel("acme-2026-07-03", auditLevel, sc, results, eng.Journal.Entries(), started, time.Now())
+	sessionID := scope.SessionID(sc.ClientRef, started)
+	sess := session.NewAtLevel(sessionID, auditLevel, sc, results, eng.Journal.Entries(), started, time.Now())
+	fmt.Fprintf(os.Stderr, "Session d'audit %s : %s, %d machine(s), niveau %s.\n", sessionID, sc.ClientRef, len(sc.Hosts), auditLevel)
 
 	// Contrôle d'intégrité de la preuve d'audit : la chaîne de hachage du journal
 	// doit être intacte (aucune entrée modifiée, réordonnée ou supprimée).
@@ -270,27 +260,32 @@ func main() {
 }
 
 // printPreflight affiche le résultat de la reconnaissance de périmètre de droits :
-// un décompte par état, le détail des trous (hors « lisible »), et la liste des
-// hôtes à provisionner. Rappelle explicitement qu'aucune élévation n'est tentée.
+// un décompte par état, le détail des trous (hors « lisible »), les hôtes à
+// provisionner ou à vérifier, puis un verdict qui n'annonce un périmètre
+// suffisant que si toutes les collectes applicables ont abouti. Rappelle
+// explicitement qu'aucune élévation n'est tentée.
 func printPreflight(rows []engine.PreflightRow) {
-	counts := map[engine.Readiness]int{}
-	for _, r := range rows {
-		counts[r.Status]++
-	}
+	s := engine.SummarizePreflight(rows)
 	fmt.Fprintln(os.Stderr, "\n=== Preflight — périmètre de droits (lecture seule, aucune élévation) ===")
-	fmt.Fprintf(os.Stderr, "%d lisible · %d droits insuffisants · %d OS non supporté · %d injoignable\n",
-		counts[engine.ReadyOK], counts[engine.ReadyPrivilege], counts[engine.ReadyUnsupported], counts[engine.ReadyUnreachable])
+	fmt.Fprintf(os.Stderr, "%d lisible · %d droits insuffisants · %d preuve illisible · %d injoignable · %d OS non supporté\n",
+		s.Counts[engine.ReadyOK], s.Counts[engine.ReadyPrivilege], s.Counts[engine.ReadyUnreadable],
+		s.Counts[engine.ReadyUnreachable], s.Counts[engine.ReadyUnsupported])
 	for _, r := range rows {
 		if r.Status != engine.ReadyOK {
 			fmt.Fprintf(os.Stderr, "  [%s] %s / %s — %s\n", r.Status, r.Host, r.ControlID, r.Detail)
 		}
 	}
-	if hosts := engine.HostsNeedingProvisioning(rows); len(hosts) > 0 {
-		fmt.Fprintf(os.Stderr, "\nÀ provisionner — accorder au compte de service un accès en LECTURE aux ressources ci-dessus sur : %v\n", hosts)
+	if len(s.ProvisionHosts) > 0 {
+		fmt.Fprintf(os.Stderr, "\nÀ provisionner — accorder au compte de service un accès en LECTURE aux ressources ci-dessus sur : %v\n", s.ProvisionHosts)
 		fmt.Fprintln(os.Stderr, "Le client accorde l'accès ; l'outil ne se l'arroge jamais (aucune élévation automatique, par conception).")
-	} else {
-		fmt.Fprintln(os.Stderr, "\nPérimètre de droits suffisant : les audits suivants seront autonomes.")
 	}
+	if len(s.UnreachableHosts) > 0 {
+		fmt.Fprintf(os.Stderr, "\nÀ vérifier — connectivité, transport ou preuves absentes sur : %v\n", s.UnreachableHosts)
+	}
+	if len(s.UnreadableHosts) > 0 {
+		fmt.Fprintf(os.Stderr, "\nÀ vérifier — sorties non interprétables sur : %v\n", s.UnreadableHosts)
+	}
+	fmt.Fprintf(os.Stderr, "\n%s\n", s.Verdict)
 }
 
 // loadResponses lit le fichier de réponses du questionnaire (map questionID ->
