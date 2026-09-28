@@ -42,10 +42,10 @@
 - build statique, build reproductible (deux builds, mêmes empreintes) et démo de bout en bout
 
 ## Integration style
-- **Merge mode:** merge — la PR #1 a été fusionnée en commit de fusion normal, comme Batte et
-  Palier (historique détaillé gardé). Le kit fusionne en squash par défaut : passer
-  `guarded-pr-merge.sh <PR> -- --merge --delete-branch`. Squash reste autorisé, rebase désactivé
-  (`.github/repo-setup.yml`).
+- **Merge mode:** squash — décision de JB du 28/09/2026 : fusion squash seule, comme le kit
+  (commit de fusion et rebase désactivés dans `.github/repo-setup.yml`). Le titre de la PR devient
+  le sujet du commit sur la branche par défaut, suivi de `(#<PR>)` ; `merge-pr` et
+  `guarded-pr-merge.sh` fusionnent ainsi par défaut. Historique antérieur : commits de fusion.
 - **PR title convention:** pas de contrôle de titre en CI. Messages en français, infinitif avec
   majuscule (« Corriger les sondes Linux… », « Renommer le module… »), préfixe de zone facultatif
   (`CI : …`, `Release : …`, `Questionnaire : …`). Pas de Conventional Commits dans l'historique :
