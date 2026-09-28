@@ -1,0 +1,33 @@
+version: 2
+
+# Mises à jour de version hebdomadaires, groupées pour limiter le nombre de PR :
+# les mineures et correctifs arrivent dans une seule PR par écosystème, les
+# majeures restent séparées (elles changent des interfaces).
+#
+# `cooldown` laisse quelques jours à une nouvelle version avant de la proposer :
+# une version compromise publiée puis retirée dans l'heure n'est ainsi jamais
+# proposée. Il ne s'applique pas aux mises à jour de SÉCURITÉ déclenchées par une
+# alerte Dependabot, qui restent immédiates.
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    groups:
+      mineures-et-correctifs:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      mineures-et-correctifs:
+        update-types: [minor, patch]
