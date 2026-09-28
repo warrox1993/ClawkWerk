@@ -144,7 +144,7 @@ func ComputeConformity(results []assess.ControlResult, level string) ConformityS
 	return s
 }
 
-// aggregate reproduit EXACTEMENT le calcul de maturité du barème officiel CCB
+// aggregateAxes reproduit EXACTEMENT le calcul de maturité du barème officiel CCB
 // (formules Excel des feuilles de fonction + onglet Summary) :
 //
 //	requirement --moyenne--> sous-catégorie --moyenne--> catégorie --moyenne--> total
@@ -158,14 +158,8 @@ func ComputeConformity(results []assess.ControlResult, level string) ConformityS
 // Chaque étage pèse également (moyenne de moyennes), donc une catégorie riche en
 // contrôles ne pèse pas plus qu'une autre — d'où l'écart avec une moyenne à plat.
 // Renvoie la maturité totale et la Category Maturity Score par catégorie.
-func aggregate(results []assess.ControlResult, naValue cyfun.MaturityScore) (total cyfun.MaturityScore, catMaturity map[string]cyfun.MaturityScore) {
-	total, catMaturity, _ = aggregateAxes(results, naValue)
-	return total, catMaturity
-}
-
-// aggregateAxes fait le calcul d'aggregate et renvoie en plus, par catégorie
-// (triées dans l'ordre du référentiel), les maturités Documentation et
-// Implementation, comme l'onglet Summary de l'outil officiel.
+// Il renvoie aussi, par catégorie (dans l'ordre des fonctions), les
+// maturités Documentation et Implementation, comme l'onglet Summary.
 func aggregateAxes(results []assess.ControlResult, naValue cyfun.MaturityScore) (total cyfun.MaturityScore, catMaturity map[string]cyfun.MaturityScore, cats []CategoryScore) {
 	type acc struct {
 		doc, impl cyfun.MaturityScore
