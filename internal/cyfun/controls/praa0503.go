@@ -57,7 +57,15 @@ const PRAA0503WinCmd = `$l=@(netstat -ano | Select-String 'LISTENING'); $leg=@($
 
 // PRAA0503LinuxCmd : collecte Linux LECTURE SEULE, émet 2 lignes : nombre total
 // de ports TCP en écoute, puis nombre de ports legacy en clair (21/23/512-514).
-const PRAA0503LinuxCmd = `ss -tlnH 2>/dev/null | wc -l; ss -tlnH 2>/dev/null | grep -cE ':(21|23|512|513|514) '`
+//
+// `grep -c` sort avec le code 1 quand il ne trouve RIEN, c'est-à-dire sur une
+// machine saine sans protocole legacy : sans le `|| true`, la commande échouait
+// et le contrôle était classé « collecte échouée ». Si `ss` est introuvable, la
+// sonde échoue explicitement : zéro port lu ne doit jamais passer pour une
+// surface d'exposition minimale.
+const PRAA0503LinuxCmd = `export LC_ALL=C PATH="$PATH:/usr/sbin:/sbin"; ` +
+	`command -v ss >/dev/null 2>&1 || { echo 'ss introuvable (paquet iproute2) : ports en écoute non énumérables' >&2; exit 2; }; ` +
+	`ss -tlnH 2>/dev/null | wc -l; ss -tlnH 2>/dev/null | grep -cE ':(21|23|512|513|514) ' || true`
 
 // HardeningEvaluator implémente assess.Evaluator pour PR.AA-05.3.
 type HardeningEvaluator struct{}

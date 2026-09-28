@@ -37,8 +37,13 @@ const HardwareWinCmd = `$n=@(Get-CimInstance Win32_PnPEntity -ErrorAction Silent
 
 // HardwareLinuxCmd : collecte Linux LECTURE SEULE. Énumère les composants PCI et
 // USB LOCAUX ; chaque ligne = un composant, `grep -c .` en donne le nombre.
-// Émet UNE ligne entière = le nombre de composants matériels locaux.
-const HardwareLinuxCmd = `{ lspci 2>/dev/null; lsusb 2>/dev/null; } | grep -c .`
+// Émet UNE ligne entière = le nombre de composants matériels locaux. Le
+// `|| true` neutralise le code 1 de `grep -c` quand il ne compte rien ; si ni
+// lspci ni lsusb n'est installé, la sonde échoue explicitement (outil absent,
+// pas « zéro composant »).
+const HardwareLinuxCmd = `export LC_ALL=C PATH="$PATH:/usr/sbin:/sbin"; ` +
+	`{ command -v lspci >/dev/null 2>&1 || command -v lsusb >/dev/null 2>&1; } || { echo 'lspci et lsusb introuvables (paquets pciutils, usbutils)' >&2; exit 2; }; ` +
+	`{ lspci 2>/dev/null; lsusb 2>/dev/null; } | grep -c . || true`
 
 // evaluateHardware contient la règle de décision (pure), commune aux trois
 // contrôles de la famille. Deux issues seulement : soit l'énumération échoue
