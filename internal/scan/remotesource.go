@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/audit"
-	"projetcyber/internal/scope"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/audit"
+	"github.com/warrox1993/clawkwerk/internal/scope"
 )
 
 // RemoteSource est la Source d'accès distant sans agent. Elle ne parle aucun

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 // PR.AA-01.1 — « Identities and credentials for authorised users, services, and

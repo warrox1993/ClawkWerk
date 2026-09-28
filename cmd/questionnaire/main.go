@@ -18,8 +18,8 @@ import (
 	"os"
 	"time"
 
-	"projetcyber/internal/engine"
-	"projetcyber/internal/web"
+	"github.com/warrox1993/clawkwerk/internal/engine"
+	"github.com/warrox1993/clawkwerk/internal/web"
 )
 
 // addr est la seule adresse d'écoute autorisée. Constante, pas un flag : on ne

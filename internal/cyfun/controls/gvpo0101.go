@@ -1,8 +1,8 @@
 package controls
 
 import (
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 // GV.PO-01.1 est un contrôle DÉCLARATIF (gouvernance) : il ne se scanne pas.

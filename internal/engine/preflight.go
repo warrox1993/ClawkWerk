@@ -5,8 +5,8 @@ import (
 	"context"
 	"sort"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/scope"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/scope"
 )
 
 // Readiness = état d'ACCÈS d'un contrôle scannable sur un hôte, constaté par le

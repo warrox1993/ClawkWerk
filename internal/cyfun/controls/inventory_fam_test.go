@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
 )
 
 // evaluator commun à la famille : signature identique, on teste les trois via

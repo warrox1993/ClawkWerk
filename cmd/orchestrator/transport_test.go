@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"projetcyber/internal/scan"
+	"github.com/warrox1993/clawkwerk/internal/scan"
 )
 
 func TestBuildSource_File(t *testing.T) {

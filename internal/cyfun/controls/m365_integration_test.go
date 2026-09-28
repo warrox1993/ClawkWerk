@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
 )
 
 // La preuve M365 (IdP autoritaire) prouve RÉELLEMENT la MFA : elle dépasse le

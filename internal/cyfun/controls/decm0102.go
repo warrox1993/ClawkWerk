@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 // AntivirusEvidence = faits bruts collectés (lecture seule) pour DE.CM-01.2

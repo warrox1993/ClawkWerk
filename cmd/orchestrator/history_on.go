@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"os"
 
-	"projetcyber/internal/session"
-	"projetcyber/internal/store"
+	"github.com/warrox1993/clawkwerk/internal/session"
+	"github.com/warrox1993/clawkwerk/internal/store"
 )
 
 // saveHistory — variante « poste consultant » (build `-tags history`).

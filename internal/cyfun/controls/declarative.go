@@ -1,8 +1,8 @@
 package controls
 
 import (
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 // DeclarativeControl = un contrôle organisationnel NON scannable : ses deux axes

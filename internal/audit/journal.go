@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/scope"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/scope"
 )
 
 // Kind catégorise une entrée du journal.

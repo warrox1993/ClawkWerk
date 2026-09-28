@@ -7,7 +7,7 @@ package scope
 import (
 	"time"
 
-	"projetcyber/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/assess"
 )
 
 // Transport désigne le mode d'accès distant en lecture seule à un hôte.

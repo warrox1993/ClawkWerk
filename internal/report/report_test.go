@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/scope"
-	"projetcyber/internal/session"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/scope"
+	"github.com/warrox1993/clawkwerk/internal/session"
 )
 
 // sessionForTest fabrique une session à deux contrôles : un Key Measure non

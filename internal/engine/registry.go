@@ -3,11 +3,11 @@ package engine
 import (
 	"time"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/cyfun/controls"
-	"projetcyber/internal/scan"
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/cyfun/controls"
+	"github.com/warrox1993/clawkwerk/internal/scan"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 // ControlsForLevel renvoie le jeu de contrôles à auditer pour un NIVEAU

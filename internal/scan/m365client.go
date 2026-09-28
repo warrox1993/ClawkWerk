@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"strings"
 
-	"projetcyber/internal/scope"
+	"github.com/warrox1993/clawkwerk/internal/scope"
 )
 
 // Microsoft365Client interroge Microsoft Graph en LECTURE SEULE pour un tenant

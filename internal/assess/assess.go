@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"projetcyber/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
 )
 
 // HostRef identifie une machine du périmètre. On n'y met que le strict

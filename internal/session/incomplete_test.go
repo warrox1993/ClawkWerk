@@ -3,8 +3,8 @@ package session
 import (
 	"testing"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
 )
 
 // Un contrôle NON évalué (ni scan, ni attestation, ni N/A) bloque le verdict :

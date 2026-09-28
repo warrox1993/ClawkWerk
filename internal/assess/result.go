@@ -1,6 +1,6 @@
 package assess
 
-import "projetcyber/internal/cyfun"
+import "github.com/warrox1993/clawkwerk/internal/cyfun"
 
 // Aggregate combine les évaluations par hôte en un seul niveau proposé au
 // contrôle (+ justification). Le défaut du projet est WorstCase (maillon

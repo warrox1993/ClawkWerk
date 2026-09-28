@@ -15,14 +15,14 @@ import (
 	"os"
 	"time"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/audit"
-	"projetcyber/internal/capture"
-	"projetcyber/internal/engine"
-	"projetcyber/internal/report"
-	"projetcyber/internal/scope"
-	"projetcyber/internal/session"
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/audit"
+	"github.com/warrox1993/clawkwerk/internal/capture"
+	"github.com/warrox1993/clawkwerk/internal/engine"
+	"github.com/warrox1993/clawkwerk/internal/report"
+	"github.com/warrox1993/clawkwerk/internal/scope"
+	"github.com/warrox1993/clawkwerk/internal/session"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 func main() {

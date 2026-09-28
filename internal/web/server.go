@@ -14,7 +14,7 @@ import (
 	"net/http"
 	"sync"
 
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 // Server est un http.Handler qui rend le formulaire et encaisse les

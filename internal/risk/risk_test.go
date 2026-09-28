@@ -3,8 +3,8 @@ package risk
 import (
 	"testing"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
 )
 
 func res(id string, km bool, host string, st assess.Status) assess.ControlResult {

@@ -8,11 +8,11 @@ import (
 
 	"golang.org/x/crypto/ssh/knownhosts"
 
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/cyfun/controls"
-	"projetcyber/internal/engine"
-	"projetcyber/internal/scan"
-	"projetcyber/internal/scope"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/cyfun/controls"
+	"github.com/warrox1993/clawkwerk/internal/engine"
+	"github.com/warrox1993/clawkwerk/internal/scan"
+	"github.com/warrox1993/clawkwerk/internal/scope"
 )
 
 // normalizeLevel valide et normalise le niveau d'assurance saisi en CLI

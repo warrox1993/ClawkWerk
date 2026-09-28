@@ -13,7 +13,7 @@ package survey
 import (
 	"sort"
 
-	"projetcyber/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
 )
 
 // Axis désigne l'axe de notation qu'une question alimente.

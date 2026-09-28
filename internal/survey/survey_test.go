@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"projetcyber/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
 )
 
 // catalogue de test : un contrôle scannable (Documentation seule) et un

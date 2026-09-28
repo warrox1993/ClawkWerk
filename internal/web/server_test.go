@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 // testQuestions fabrique un petit catalogue déterministe, indépendant du vrai

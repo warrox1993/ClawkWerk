@@ -17,8 +17,8 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/session"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/session"
 )
 
 // Store encapsule la base SQLite d'historique.

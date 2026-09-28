@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 // Famille SYNCHRONISATION DE TEMPS. Sonde auto-contenue (sur le modèle de
