@@ -1,4 +1,4 @@
-# Clé USB bootable — projetCyber (live, stateless)
+# Clé USB bootable — ClawkWerk (live, stateless)
 
 Recette de construction d'une image **live Debian** qui démarre entièrement en
 RAM, exécute l'outil d'audit CyFun, puis ne laisse **aucune trace** entre deux
@@ -19,7 +19,7 @@ clients (contrainte stateless de la clé).
 - **Local uniquement** : le questionnaire web écoute sur `127.0.0.1:8099`
   (loopback strict), jamais exposé au réseau.
 - **Binaire statique** : `orchestrator` et `questionnaire` sont compilés en
-  `CGO_ENABLED=0` (aucune dépendance système), copiés dans `/opt/projetcyber`.
+  `CGO_ENABLED=0` (aucune dépendance système), copiés dans `/opt/clawkwerk`.
 
 ## Prérequis (sur une machine Debian/Ubuntu de build)
 
@@ -35,7 +35,7 @@ cd live
 ```
 
 Le script :
-1. compile les binaires statiques dans `config/includes.chroot/opt/projetcyber/` ;
+1. compile les binaires statiques dans `config/includes.chroot/opt/clawkwerk/` ;
 2. configure `live-build` (Debian bookworm, amd64, boot `toram`) ;
 3. lance `sudo lb build` → produit `live-image-amd64.hybrid.iso`.
 
@@ -49,10 +49,10 @@ sudo dd if=live-image-amd64.hybrid.iso of=/dev/sdX bs=4M status=progress && sync
 
 ## À l'usage
 
-- Le service `projetcyber-questionnaire` démarre au boot et sert le
+- Le service `clawkwerk-questionnaire` démarre au boot et sert le
   questionnaire déclaratif sur `http://127.0.0.1:8099` (ouvrir un navigateur
   local si l'image est graphique ; sinon utiliser l'orchestrateur en CLI).
-- Scan technique : `orchestrator -transport remote -creds /run/projetcyber/creds.json -known-hosts /run/projetcyber/known_hosts -pdf /run/projetcyber/rapport.pdf`.
+- Scan technique : `orchestrator -scope /run/clawkwerk/scope.json -transport remote -creds /run/clawkwerk/creds.json -known-hosts /run/clawkwerk/known_hosts -pdf /run/clawkwerk/rapport.pdf`.
 - **Exporter le rapport en fin de session** (vers le client / un support séparé)
   avant d'éteindre : rien n'est conservé sur la clé.
 

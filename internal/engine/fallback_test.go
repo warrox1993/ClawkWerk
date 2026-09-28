@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/audit"
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/scan"
-	"projetcyber/internal/scope"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/audit"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/scan"
+	"github.com/warrox1993/clawkwerk/internal/scope"
 )
 
 // DÉGRADATION GRACIEUSE : un contrôle scannable dont le scan échoue sur TOUS les

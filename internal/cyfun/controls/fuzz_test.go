@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"projetcyber/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/assess"
 )
 
 // allNormalizers rassemble TOUS les normaliseurs (endpoints + réseau, tous

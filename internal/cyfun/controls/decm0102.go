@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 // AntivirusEvidence = faits bruts collectés (lecture seule) pour DE.CM-01.2
@@ -77,19 +77,67 @@ func AntivirusWindowsNormalizer(raw []byte) (json.RawMessage, error) {
 	})
 }
 
-// AntivirusLinuxNormalizer parse la sortie de shClamStatus (3 lignes :
-// état du service ; version freshclam ; epoch mtime des définitions). L'horloge
-// est injectée pour le calcul d'âge (fonction restante pure et testable).
+// AntivirusLinuxCmd : collecte Linux LECTURE SEULE pour DE.CM-01.2. Émet
+// toujours 4 lignes et se termine par un code de sortie nul, y compris sur une
+// machine sans antivirus (auparavant, le `stat` final échouait et la machine
+// était classée « collecte échouée » au lieu de « aucun antivirus ») :
+//  1. état du démon ClamAV (active, inactive, failed…) ou « unknown » si
+//     systemd ne répond pas ;
+//  2. version de freshclam, ou « absent » ;
+//  3. epoch de modification des définitions (daily.cld ou daily.cvd), ou 0 ;
+//  4. « autres: » suivi des services anti-malware tiers actifs (Defender for
+//     Endpoint, Sophos, ESET, CrowdStrike, SentinelOne, Trend, Bitdefender,
+//     Kaspersky).
+//
+// PATH est complété par /usr/sbin et /sbin : un compte de service non root n'y
+// a souvent pas accès par défaut, et un outil introuvable ne doit pas passer
+// pour un outil absent.
+const AntivirusLinuxCmd = `export LC_ALL=C PATH="$PATH:/usr/sbin:/sbin"; ` +
+	`S=$(systemctl is-active clamav-daemon 2>/dev/null); echo "${S:-unknown}"; ` +
+	`freshclam --version 2>/dev/null || echo absent; ` +
+	`stat -c %Y /var/lib/clamav/daily.cld 2>/dev/null || stat -c %Y /var/lib/clamav/daily.cvd 2>/dev/null || echo 0; ` +
+	`printf 'autres:'; for s in mdatp sophos-spl eea esets falcon-sensor sentinelone ds_agent bdsec kesl; do [ "$(systemctl is-active "$s" 2>/dev/null)" = active ] && printf ' %s' "$s"; done; echo`
+
+// AntivirusLinuxNormalizer parse la sortie de AntivirusLinuxCmd. L'horloge est
+// injectée pour le calcul d'âge (fonction restante pure et testable).
+//
+// Décisions :
+//   - ClamAV actif : preuve complète (état + fraîcheur des définitions) ;
+//   - anti-malware tiers actif : sa présence est constatée mais la fraîcheur de
+//     ses définitions n'est pas lisible par cette sonde, on le signale donc
+//     comme trou de collecte (le questionnaire de repli prend le relais) plutôt
+//     que d'inventer un âge ;
+//   - systemd muet : aucun état de service lisible, trou de collecte ;
+//   - rien de tout cela : aucun antivirus (non-conformité constatée).
+//
+// L'ancien format sur 3 lignes (sans ligne « autres: ») reste accepté.
 func AntivirusLinuxNormalizer(now func() time.Time) assess.NormalizeFunc {
 	return func(raw []byte) (json.RawMessage, error) {
 		ls := lines(raw)
 		if len(ls) == 0 {
 			return nil, errors.New("sortie ClamAV vide")
 		}
+		var others []string
+		newFormat := false
+		for _, l := range ls {
+			if rest, ok := strings.CutPrefix(l, "autres:"); ok {
+				newFormat = true
+				others = strings.Fields(rest)
+			}
+		}
 		active := ls[0] == "active"
-		present := active || ls[0] == "inactive" || ls[0] == "failed"
-		if len(ls) > 1 && strings.Contains(ls[1], "ClamAV") {
-			present = true
+		freshclam := len(ls) > 1 && strings.Contains(ls[1], "ClamAV")
+		present := active || freshclam
+		if !newFormat && (ls[0] == "inactive" || ls[0] == "failed") {
+			present = true // ancien format : l'état du service suffisait
+		}
+		if newFormat && !active {
+			if len(others) > 0 {
+				return nil, fmt.Errorf("anti-malware tiers actif (%s) : fraîcheur des définitions non vérifiable par la sonde, attestation requise", strings.Join(others, ", "))
+			}
+			if ls[0] == "unknown" {
+				return nil, errors.New("état des services illisible (systemd indisponible) : présence d'un antivirus indéterminable")
+			}
 		}
 		age := defsStaleDays + 1 // pas de mtime lisible => considéré périmé
 		if len(ls) > 2 {

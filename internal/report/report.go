@@ -13,10 +13,10 @@ import (
 	"sort"
 	"strings"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/risk"
-	"projetcyber/internal/session"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/risk"
+	"github.com/warrox1993/clawkwerk/internal/session"
 )
 
 // ordre d'affichage des fonctions NIST (celui du référentiel CyFun).

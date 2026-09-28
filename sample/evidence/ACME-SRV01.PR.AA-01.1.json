@@ -1,0 +1,12 @@
+Fermeture forcée de la session après expiration du délai ? :   Jamais
+Durée de vie minimale du mot de passe (jours) :                 0
+Durée de vie maximale du mot de passe (jours) :                 42
+Longueur minimale du mot de passe :                             8
+Longueur de l'historique des mots de passe :                    Aucune
+Seuil de verrouillage :                                         Jamais
+Durée de verrouillage (minutes) :                               30
+Fenêtre d'observation du verrouillage (minutes) :               30
+Rôle de l'ordinateur :                                          SERVEUR
+La commande s'est terminée correctement.
+
+GUEST_DISABLED=1

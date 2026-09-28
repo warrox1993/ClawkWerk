@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 // ID.AM-08.2 — les patches et mises à jour de sécurité de l'OS et des

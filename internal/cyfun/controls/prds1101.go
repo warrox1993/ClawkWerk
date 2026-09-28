@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 // PR.DS-11.1 — « Backups for the organisation's business-critical data shall be
@@ -54,7 +54,7 @@ const PRDS1101WinCmd = `$svc=@(Get-Service 2>$null | Where-Object {$_.Name -matc
 // PRDS1101LinuxCmd : sonde Linux LECTURE SEULE (3 lignes yes/no) — présence
 // d'un outil de sauvegarde, existence d'une planification (cron/timer), et
 // indice hors-site (toujours "no" : non prouvable depuis l'hôte source).
-const PRDS1101LinuxCmd = `command -v restic borg duplicity rsnapshot bacula-fd 2>/dev/null | grep -q . && echo yes || echo no; (crontab -l 2>/dev/null; ls /etc/cron.d /etc/cron.daily 2>/dev/null; systemctl list-timers 2>/dev/null) | grep -qiE 'backup|restic|borg|duplicity|rsnapshot' && echo yes || echo no; echo no`
+const PRDS1101LinuxCmd = `command -v restic borg duplicity rsnapshot bacula-fd 2>/dev/null | grep -q . && echo yes || echo no; (crontab -l 2>/dev/null; ls /etc/cron.d /etc/cron.daily 2>/dev/null; systemctl list-timers 2>/dev/null) | grep -v dpkg-db-backup | grep -qiE 'backup|restic|borg|duplicity|rsnapshot' && echo yes || echo no; echo no`
 
 // BackupEvaluator implémente assess.Evaluator pour PR.DS-11.1.
 type BackupEvaluator struct{}

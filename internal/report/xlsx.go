@@ -6,7 +6,7 @@ import (
 	"encoding/xml"
 	"fmt"
 
-	"projetcyber/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
 )
 
 // XLSX produit un classeur .xlsx (Office Open XML) résumant l'audit, sans

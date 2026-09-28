@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"projetcyber/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/assess"
 )
 
 // TestScope_SecretAbsentFromScopeJSON : un périmètre complet (hôtes + réfs de

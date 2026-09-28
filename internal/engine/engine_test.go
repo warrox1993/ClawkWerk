@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/audit"
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/scan"
-	"projetcyber/internal/scope"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/audit"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/scan"
+	"github.com/warrox1993/clawkwerk/internal/scope"
 )
 
 // writeEvidence dépose une preuve antivirus pour un hôte donné.

@@ -1,114 +1,119 @@
-# Journal de développement — projetCyber
+# Journal des modifications
 
-Outil d'audit + remédiation cybersécurité pour PME belges, basé sur le
-référentiel officiel **CyFun 2025** (CCB), aligné NIST CSF 2.0 / NIS2.
-Positionnement : **préparateur à la conformité**, jamais organisme de
-certification. Écrit en **Go**, livré en **binaire statique unique CGo-free**,
-destiné à une clé USB bootable stateless.
+Format inspiré de « Keep a Changelog ». Les chiffres sont mesurés sur le code
+de la version concernée.
 
-## État actuel
+## [1.0.0] - 2026-09-28
 
-- **Référentiel complet, 3 niveaux** : Basic (34 contrôles), Important (133),
-  Essential (218). Textes officiels du CCB ; seuils officiels **non uniformes**
-  (Basic KM/total 2,5 ; Important 3/3 ; Essential KM 3 / catégorie 3 / total 3,5).
-- **Scoring** : Documentation (questionnaire) + Implementation (scan) par
-  contrôle, moyenne = maturité. **Agrégation HIÉRARCHIQUE identique au barème
-  officiel CCB** (requirement → sous-catégorie → catégorie → total, moyenne de
-  moyennes ; Doc/Impl combinés au niveau catégorie), reproduite depuis les
-  formules Excel du xlsx, **y compris le traitement du « N/A »** (substitution
-  par le seuil, comme la CCB). Override consultant tracé (proposé vs final +
-  justification, ou marquage « non applicable ») — seul chemin honnête vers un
-  5/5. **Aucune falsification.** Parité de calcul CCB : **contrôles + Key
-  Measures + seuils + agrégation + N/A = identiques** ; en plus = le scan.
-- **7 contrôles scannables** (antivirus, pare-feu, correctifs, journalisation,
-  comptes admin, + réseau) ; le reste déclaratif (questionnaire).
-- **Framework réseau** : 3 contrôles (pare-feu PR.IR-01.1, segmentation
-  PR.IR-01.2, journalisation PR.PS-04.1) × ~10 marques (RouterOS, pfSense,
-  FortiOS, Cisco, PAN-OS, SonicWall, WatchGuard, Zyxel, Sophos, UniFi).
-- **Transports** : File (dev), SSH, WinRM, API (UniFi/Sophos) — tous lecture
-  seule, journal requis, credentials en RAM jamais sérialisés.
-- **Sondes endpoint multi-distro** : ufw/firewalld/nftables, apt/dnf/zypper.
-- **Rapports** : JSON, HTML (6 sections + objectif 5/5), XLSX, PDF.
-- **Historique consultant** SQLite (hors clé USB).
-- **Live-boot** : recette Debian live-build (`live/`, boot toram stateless).
+Première version publiée avec intégration continue et binaires.
 
-## Garanties de sécurité (prouvées par des tests, pas seulement affirmées)
+### Ajouté
 
-- **Lecture seule** : toutes les commandes du registre sont `IsReadOnly` (test) ;
-  aucune primitive d'écriture/élévation/mouvement latéral n'existe.
-- **Remédiation JAMAIS auto-exécutée** : générée pour validation humaine.
-- **Secret jamais sérialisé** (champ non exporté, test à canari).
-- **Journal d'audit infalsifiable** : chaîne de hachage SHA-256, `audit.Verify`
-  détecte toute modification/réordonnancement/suppression.
-- **Périmètre = input explicite** : aucune découverte réseau autonome.
+- Drapeau `-scope` : le périmètre d'audit (client, machines, OS, transport,
+  port, compte de service) est lu depuis un fichier JSON validé strictement
+  (champs inconnus, doublons, plages réseau et plateformes inconnues
+  refusés). Exemple fourni : `sample/scope.json`. L'identifiant de session est
+  horodaté (`<client>-AAAAMMJJ-HHMMSS`).
+- Mode remote : `-creds` obligatoire et vérifié contre chaque `cred_ref` du
+  périmètre avant toute connexion.
+- Questionnaire web : drapeau `-level basic|important|essential` (71, 269 ou
+  439 questions), jeton anti-CSRF, contrôle des en-têtes Origin et Host,
+  en-têtes anti-clickjacking, écriture des réponses uniquement après une
+  soumission acceptée.
+- Démo complète : preuves pour les 16 contrôles scannables Basic sur deux
+  machines Windows, une machine Linux (sorties réelles capturées sur un
+  conteneur Debian) et un pare-feu MikroTik ; questionnaire rempli pour les
+  trois niveaux. Le verdict est complet à chaque niveau.
+- Support d'iptables dans la sonde pare-feu Linux ; détection des
+  anti-malwares tiers courants dans la sonde antivirus Linux.
+- Intégration continue (`.github/workflows/ci.yml`) : gofmt, go mod verify,
+  go vet, staticcheck, tests `-race` avec et sans `-tags history`,
+  govulncheck, build statique et reproductible, démo de bout en bout.
+- Publication (`.github/workflows/release.yml`) : sur un tag `v*`, binaires
+  statiques Linux et Windows amd64 (orchestrateur, orchestrateur consultant,
+  questionnaire) et fichier `SHA256SUMS`.
+- README orienté présentation, captures du rapport et du questionnaire.
 
-## Qualité
+### Corrigé
 
-- **155 fonctions de test + fuzz**, 12 paquets, tout vert.
-- Fuzzing des normaliseurs (aucune panique sur entrée arbitraire).
-- Tests de propriété (monotonie du scoring) + goldens (non-régression du verdict).
-- `gofmt`, `go vet`, `staticcheck` : 0 signalement. `govulncheck` : 0 vuln.
-- **Build reproductible** (SHA-256 identique) et statique (`CGO_ENABLED=0`).
-- CI (`.github/workflows/ci.yml`) + `Makefile`.
+- PR.AA-05.3 sur Linux : `grep -c` sortait avec le code 1 quand aucun
+  protocole legacy n'écoutait, et une machine saine était classée « collecte
+  échouée ». Sans `ss`, la sonde échoue désormais explicitement.
+- DE.CM-01.1 sur Linux : une machine sans aucun pare-feu était classée
+  « collecte échouée » ; c'est maintenant une non-conformité (niveau 1). Un
+  pare-feu présent mais illisible pour le compte de service devient un trou
+  de collecte « droits insuffisants ».
+- DE.CM-01.2 sur Linux (Key Measure) : même défaut de code de sortie sans
+  ClamAV, et une unité systemd inconnue passait pour ClamAV installé.
+- ID.AM-01.x (inventaire matériel) : même défaut de `grep -c` ; échec
+  explicite si ni `lspci` ni `lsusb` n'est installé.
+- PR.DS-11.1 : le minuteur système `dpkg-db-backup` n'est plus pris pour une
+  sauvegarde des données.
+- Les sondes concernées complètent PATH avec `/usr/sbin` et `/sbin`, absents
+  du PATH d'un compte de service non root sur Debian.
+- Preflight : « Périmètre de droits suffisant » s'affichait même quand toutes
+  les collectes échouaient. Le verdict n'est désormais suffisant que si toutes
+  les collectes applicables sont lisibles, et le preflight vérifie aussi que
+  la sortie est interprétable.
 
-## Indépendance / build
+### Sécurité
 
-- **Runtime** : binaire **statique CGo-free** — aucune dépendance dynamique
-  (« not a dynamic executable »). Tourne seul, hors-ligne, stateless.
-- **Deux profils de build** :
-  - *appliance* (défaut, `make build`) : binaire de la clé, **INDÉPENDANT de
-    SQLite** (l'historique ne vit jamais sur la clé) — ~16 Mo.
-  - *consultant* (`make build-consultant`, `-tags history`) : ajoute le suivi
-    SQLite hors clé — ~22 Mo.
-- Le découplage via *build tag* garde le binaire de la clé lean et sans le
-  moteur DB `modernc.org/sqlite` (129 Mo de source) qu'il n'utilise jamais.
+- Go 1.26.4 vers 1.26.8, `golang.org/x/crypto` 0.53.0 vers 0.57.0,
+  `github.com/Azure/go-ntlmssp` vers 0.1.1 : govulncheck passe de 10
+  vulnérabilités atteignables à 0.
 
-## Dépendances (toutes pur-Go, binaire statique préservé)
+### Modifié
 
-`golang.org/x/crypto/ssh`, `github.com/go-pdf/fpdf`, `github.com/masterzen/winrm`
-(appliance) ; `modernc.org/sqlite` uniquement en build `-tags history`.
-Règle : jamais de CGo (jamais `mattn/go-sqlite3`).
+- Module Go renommé `github.com/warrox1993/clawkwerk` ; recette live-boot
+  renommée (`/opt/clawkwerk`, service `clawkwerk-questionnaire`).
+- Outils d'analyse épinglés dans le Makefile (staticcheck 2026.2.1,
+  govulncheck 1.8.0) ; `make check` inclut les tests `-tags history`.
+- Documentation : README et CHANGELOG réécrits (l'ancienne version annonçait
+  une CI inexistante, 7 contrôles scannables et 155 tests) ; source publique
+  du référentiel citée ; documents de conception regroupés dans
+  `docs/methode`.
 
-## Utilisation
+### Mesures
 
-```sh
-# audit local (preuves de démo), niveau Basic, tous les rapports
-go run ./cmd/orchestrator -level basic -html r.html -xlsx r.xlsx -pdf r.pdf -history suivi.db
+- 371 tests et 282 sous-tests, verts avec et sans `-tags history` et sous
+  `-race` (version initiale : 339 et 238).
+- 200 fichiers Go, 22 750 lignes dont 8 612 de tests.
 
-# audit distant réel (SSH/WinRM/API)
-go run ./cmd/orchestrator -transport remote -creds creds.json -known-hosts ~/.ssh/known_hosts -level important
+## [0.1.0] - 2026-07-23
 
-# matrice de couverture (statut honnête par marque réseau)
-go run ./cmd/orchestrator -coverage
+Publication initiale du code (commit `29f6411`), sans intégration continue.
 
-# questionnaire web local
-go run ./cmd/questionnaire    # http://127.0.0.1:8099
-```
+- Référentiel CyFun 2025 complet : Basic (34 exigences, 13 Key Measures),
+  Important (133, 22), Essential (218, 29), avec les seuils officiels et
+  l'agrégation hiérarchique de l'outil Excel du CCB, traitement des « non
+  applicable » compris.
+- 16 contrôles scannables au niveau Basic, 66 au niveau Essential ; sondes
+  Windows et Linux multi-distributions ; 10 familles d'équipements réseau
+  écrites d'après la documentation ; Microsoft 365 en lecture via Graph.
+- Transports fichier, SSH (clé d'hôte obligatoire), WinRM et API.
+- Journal d'audit chaîné par SHA-256, secrets non sérialisables, test de
+  lecture seule sur toutes les commandes, dégradation vers le questionnaire
+  quand un scan est impossible, verdict bloqué tant qu'un contrôle reste non
+  évalué, mode `-preflight` sans élévation.
+- Rapports JSON, HTML, XLSX et PDF ; historique SQLite hors clé (build
+  `-tags history`) ; recette de clé USB live (jamais démarrée).
+- 339 tests et 238 sous-tests.
 
-Cibles `make check` (fmt, vet, staticcheck, test, vuln, verify) et `make build`.
+### Étapes de développement
 
-## Limites connues / à faire (honnête)
-
-- **Validation matérielle** : TOUS les adaptateurs réseau sont « d'après-doc »,
-  écrits depuis la documentation constructeur, **non testés sur équipement
-  réel**. Le fuzzing garantit l'absence de crash, pas la justesse des commandes.
-  La matrice `-coverage` dit toujours la vérité sur ce statut.
-- **Firmware réseau** : « à jour ? » indéductible hors-ligne (pas de base
-  « dernière version ») → à traiter en collecte de version + jugement consultant.
-- **Live-boot** : recette non booté-testée (produire l'ISO sur machine Debian).
-
-## Journal des sessions
-
-1. Brainstorming + archi (3 coutures Source→Evaluator→Aggregate) + PoC DE.CM-01.2.
+1. Architecture en trois coutures (collecte, évaluation, agrégation) et
+   preuve de concept sur DE.CM-01.2.
 2. Pipeline complet, session JSON, conformité Basic.
-3. Questionnaire déclaratif, 34 contrôles, rapport HTML/XLSX/PDF, SQLite, SSH/WinRM.
-4. Couche de normalisation brut→preuve ; référentiel Basic complet.
-5. Transport SSH/WinRM câblé dans l'orchestrateur.
-6. Framework réseau (pare-feu) + 10 adaptateurs constructeur.
-7. Multi-distro endpoint + live-boot.
-8. Scoring 5/5 honnête (override tracé) + objectif excellence au rapport.
-9. Journalisation réseau + niveau IMPORTANT (level-aware).
-10. Transport API (Sophos/UniFi).
-11. Renforcement : fuzzing, journal infalsifiable, garanties sécurité prouvées.
-12. Golden/property tests du scoring + chaîne de confiance (CI, build reproductible).
-13. Niveau Essential + correction des seuils non uniformes (KM/catégorie/total).
+3. Questionnaire déclaratif, 34 contrôles, rapports HTML, XLSX et PDF,
+   SQLite, SSH et WinRM.
+4. Couche de normalisation (sortie brute vers preuve) ; référentiel Basic
+   complet.
+5. Transports distants câblés dans l'orchestrateur.
+6. Adaptateurs de pare-feu réseau pour dix familles d'équipements.
+7. Sondes Linux multi-distributions et recette live-boot.
+8. Note 5/5 réservée à une correction consultant justifiée et tracée.
+9. Journalisation réseau et niveau Important.
+10. Transport API (Sophos, UniFi).
+11. Fuzzing, journal chaîné, garanties de sécurité prouvées par des tests.
+12. Tests de propriété et verdicts de référence, build reproductible.
+13. Niveau Essential et seuils non uniformes (Key Measure, catégorie, total).

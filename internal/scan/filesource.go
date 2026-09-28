@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/audit"
-	"projetcyber/internal/scope"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/audit"
+	"github.com/warrox1993/clawkwerk/internal/scope"
 )
 
 // FileSource lit des preuves déjà collectées depuis un répertoire local :

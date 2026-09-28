@@ -10,11 +10,15 @@
 package web
 
 import (
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/hex"
 	"html/template"
 	"net/http"
+	"net/url"
 	"sync"
 
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 // Server est un http.Handler qui rend le formulaire et encaisse les
@@ -32,6 +36,17 @@ type Server struct {
 	tmpl      *template.Template // template du formulaire, compilé une fois
 	mu        sync.Mutex         // protège last
 	last      survey.Responses   // dernière soumission reçue (nil tant qu'aucune)
+	token     string             // jeton anti-CSRF, tiré au hasard au démarrage
+
+	// Level = niveau d'assurance affiché dans le titre (Basic, Important…).
+	Level string
+	// AllowedHosts, si non vide, restreint les en-têtes Host acceptés (par
+	// exemple "127.0.0.1:8099") : une page tierce qui ferait pointer un nom de
+	// domaine sur 127.0.0.1 (DNS rebinding) est refusée.
+	AllowedHosts []string
+	// OnSubmit, si non nil, reçoit chaque soumission ACCEPTÉE (jeton valide),
+	// typiquement pour l'écrire sur disque. Une erreur est renvoyée en 500.
+	OnSubmit func(survey.Responses) error
 }
 
 // controlGroup = un bloc de contrôle dans le formulaire : son ID sert de titre,
@@ -50,9 +65,22 @@ func New(questions []survey.Question) *Server {
 		questions: questions,
 		groups:    groupByControl(questions),
 		tmpl:      template.Must(template.New("form").Parse(formTmpl)),
+		token:     newToken(),
 	}
 	return s
 }
+
+// newToken tire 32 octets aléatoires (crypto/rand) encodés en hexadécimal.
+func newToken() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		panic("web: générateur aléatoire indisponible : " + err.Error())
+	}
+	return hex.EncodeToString(b)
+}
+
+// CSRFToken renvoie le jeton que le formulaire doit renvoyer (utile aux tests).
+func (s *Server) CSRFToken() string { return s.token }
 
 // groupByControl range les questions par ControlID en PRÉSERVANT l'ordre de
 // première apparition du contrôle (et l'ordre des questions à l'intérieur).
@@ -79,23 +107,78 @@ func groupByControl(questions []survey.Question) []controlGroup {
 // ServeHTTP implémente http.Handler et route à la main (pas de mux) : deux
 // routes suffisent, un ServeMux serait du cérémonial inutile ici. On teste la
 // méthode ET le chemin explicitement pour renvoyer les bons codes d'erreur.
+//
+// Protection CSRF, en trois couches simples :
+//   - l'en-tête Host doit figurer dans AllowedHosts (anti DNS rebinding) ;
+//   - un POST portant un en-tête Origin (ou, à défaut, Referer) doit venir de
+//     la même origine que le serveur ;
+//   - un POST doit renvoyer le jeton aléatoire inséré dans le formulaire, qu'une
+//     page tierce ne peut pas lire.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("X-Frame-Options", "DENY")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'")
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	if !s.hostAllowed(r.Host) {
+		http.Error(w, "hôte non autorisé", http.StatusForbidden)
+		return
+	}
 	switch {
 	case r.Method == http.MethodGet && r.URL.Path == "/":
 		s.handleForm(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/submit":
+		if !sameOrigin(r) {
+			http.Error(w, "origine de la requête refusée", http.StatusForbidden)
+			return
+		}
 		s.handleSubmit(w, r)
 	default:
 		http.NotFound(w, r)
 	}
 }
 
+// hostAllowed vérifie l'en-tête Host quand une liste blanche est configurée.
+func (s *Server) hostAllowed(host string) bool {
+	if len(s.AllowedHosts) == 0 {
+		return true
+	}
+	for _, h := range s.AllowedHosts {
+		if host == h {
+			return true
+		}
+	}
+	return false
+}
+
+// sameOrigin : si le navigateur annonce l'origine (Origin, sinon Referer), son
+// hôte doit être celui de la requête. Sans aucun des deux en-têtes (client en
+// ligne de commande), c'est le jeton qui protège.
+func sameOrigin(r *http.Request) bool {
+	src := r.Header.Get("Origin")
+	if src == "" {
+		src = r.Header.Get("Referer")
+	}
+	if src == "" {
+		return true
+	}
+	u, err := url.Parse(src)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	return u.Host == r.Host
+}
+
 // handleForm rend le formulaire complet regroupé par contrôle.
 func (s *Server) handleForm(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	// On exécute le template avec les groupes ; une erreur d'exécution (rare)
-	// est renvoyée en 500 plutôt que d'écrire une page à moitié rendue.
-	if err := s.tmpl.Execute(w, s.groups); err != nil {
+	data := struct {
+		Groups []controlGroup
+		Token  string
+		Level  string
+		Total  int
+	}{s.groups, s.token, s.Level, len(s.questions)}
+	// On exécute le template ; une erreur d'exécution (rare) est renvoyée en
+	// 500 plutôt que d'écrire une page à moitié rendue.
+	if err := s.tmpl.Execute(w, data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
@@ -112,6 +195,10 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "formulaire illisible", http.StatusBadRequest)
 		return
 	}
+	if subtle.ConstantTimeCompare([]byte(r.PostForm.Get("csrf_token")), []byte(s.token)) != 1 {
+		http.Error(w, "jeton de formulaire invalide : rechargez la page du questionnaire", http.StatusForbidden)
+		return
+	}
 
 	resp := make(survey.Responses)
 	for _, q := range s.questions {
@@ -125,6 +212,13 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	s.last = resp
 	s.mu.Unlock()
+
+	if s.OnSubmit != nil {
+		if err := s.OnSubmit(resp); err != nil {
+			http.Error(w, "réponses reçues mais non enregistrées : "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	data := struct {
@@ -164,7 +258,7 @@ const formTmpl = `<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Questionnaire déclaratif CyFun</title>
+<title>Questionnaire déclaratif CyFun{{if .Level}} ({{.Level}}){{end}}</title>
 <style>
  body{font-family:system-ui,sans-serif;max-width:820px;margin:2rem auto;padding:0 1rem;line-height:1.4}
  h2{border-bottom:2px solid #345;padding-bottom:.2rem;margin-top:2rem}
@@ -175,10 +269,11 @@ const formTmpl = `<!DOCTYPE html>
 </style>
 </head>
 <body>
-<h1>Questionnaire déclaratif</h1>
-<p>Auto-évaluation assistée — ne constitue pas une certification officielle CyFun.</p>
+<h1>Questionnaire déclaratif{{if .Level}}, niveau {{.Level}}{{end}}</h1>
+<p>{{.Total}} questions. Auto-évaluation assistée : ne constitue pas une certification officielle CyFun.</p>
 <form method="post" action="/submit">
-{{range .}}
+<input type="hidden" name="csrf_token" value="{{.Token}}">
+{{range .Groups}}
   <h2>{{.ControlID}}</h2>
   {{range .Questions}}
   <fieldset>

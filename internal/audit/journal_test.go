@@ -3,8 +3,8 @@ package audit
 import (
 	"testing"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/scope"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/scope"
 )
 
 func TestMemoryJournal_RecordsInOrder(t *testing.T) {

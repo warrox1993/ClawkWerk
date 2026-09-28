@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"html/template"
 
-	"projetcyber/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
 )
 
 // HTML produit le rapport d'audit complet en HTML autonome (styles inline, pas

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"projetcyber/internal/scope"
+	"github.com/warrox1993/clawkwerk/internal/scope"
 )
 
 // Clients API de référence (UniFi, Sophos). ÉCRITS D'APRÈS LA DOCUMENTATION,

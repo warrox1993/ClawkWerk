@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-pdf/fpdf"
 
-	"projetcyber/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
 )
 
 // PDF produit le rapport d'audit complet au format PDF, en s'appuyant sur

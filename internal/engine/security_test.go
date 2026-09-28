@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"projetcyber/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
 )
 
 // TestRegistry_AllCommandsReadOnly prouve que TOUTES les commandes du registre

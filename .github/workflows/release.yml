@@ -1,0 +1,79 @@
+# Publication d'une version : sur un tag v*, construit les binaires statiques
+# Linux et Windows (amd64), calcule leurs sommes SHA-256 et crée la release
+# GitHub avec la section correspondante du CHANGELOG.
+# Actions épinglées par SHA de commit (version indiquée en commentaire).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  publier:
+    name: Construire et publier
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # création de la release et envoi des binaires
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Tests
+        run: |
+          go test -count=1 ./...
+          go test -count=1 -tags history ./...
+
+      - name: Binaires statiques Linux et Windows (amd64)
+        env:
+          CGO_ENABLED: '0'
+          GOARCH: amd64
+          VERSION: ${{ github.ref_name }}
+        # Sorties écrites HORS du dépôt : un fichier non suivi dans l'arbre
+        # marquerait les binaires suivants vcs.modified=true.
+        run: |
+          dist="$RUNNER_TEMP/dist"
+          mkdir -p "$dist"
+          flags='-trimpath -ldflags=-buildid='
+          for os in linux windows; do
+            ext=''
+            [ "$os" = windows ] && ext='.exe'
+            GOOS=$os go build $flags -o "$dist/clawkwerk-orchestrator_${VERSION}_${os}_amd64${ext}" ./cmd/orchestrator
+            GOOS=$os go build $flags -tags history -o "$dist/clawkwerk-orchestrator-consultant_${VERSION}_${os}_amd64${ext}" ./cmd/orchestrator
+            GOOS=$os go build $flags -o "$dist/clawkwerk-questionnaire_${VERSION}_${os}_amd64${ext}" ./cmd/questionnaire
+          done
+          for b in "$dist"/*linux_amd64; do
+            file "$b" | grep -q "statically linked" || { echo "$b n'est pas statique"; exit 1; }
+          done
+          (cd "$dist" && sha256sum * > SHA256SUMS)
+          cat "$dist/SHA256SUMS"
+
+      - name: Notes de version (section du CHANGELOG)
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          num="${VERSION#v}"
+          awk -v v="$num" '
+            /^## / { dedans = (index($0, "[" v "]") > 0); next }
+            dedans { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          test -s "$RUNNER_TEMP/notes.md" || { echo "Section [$num] absente du CHANGELOG"; exit 1; }
+          cat "$RUNNER_TEMP/notes.md"
+
+      - name: Création de la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          gh release create "$VERSION" "$RUNNER_TEMP"/dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "ClawkWerk $VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --verify-tag

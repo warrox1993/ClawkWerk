@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 // DE.CM-01.1 — pare-feu (y compris endpoint) installé et opérationnel aux
@@ -93,12 +93,143 @@ func FirewallWindowsNormalizer(raw []byte) (json.RawMessage, error) {
 	})
 }
 
-// FirewallLinuxNormalizer est MULTI-DISTRO : la sonde concatène les sorties de
-// ufw (Debian/Ubuntu), firewalld (RHEL/Fedora/SUSE) et nftables (générique) ;
-// on détecte lequel est actif par des signaux distinctifs. On teste dans
-// l'ordre : ufw actif → firewalld actif → nftables → ufw présent mais éteint.
+// FirewallLinuxCmd : collecte Linux LECTURE SEULE pour DE.CM-01.1,
+// MULTI-DISTRO (ufw, firewalld, nftables, iptables). La sonde sépare deux
+// questions que l'ancienne version confondait :
+//   - quels outils de pare-feu sont INSTALLÉS (section « # outils ») ;
+//   - quel ÉTAT a pu être lu (section « # etat »), un outil présent mais non
+//     lisible par le compte de service étant signalé « illisible: <outil> ».
+//
+// Sans cette distinction, une machine sans aucun pare-feu produisait une
+// sortie vide, classée « collecte échouée » au lieu de « aucun pare-feu ».
+// PATH est complété par /usr/sbin et /sbin : un compte non root n'y a souvent
+// pas accès, et un outil introuvable ne doit pas passer pour un outil absent.
+const FirewallLinuxCmd = `export LC_ALL=C PATH="$PATH:/usr/sbin:/sbin"; ` +
+	`echo '# outils'; for t in ufw firewall-cmd nft iptables; do command -v "$t" >/dev/null 2>&1 && echo "outil: $t"; done; ` +
+	`echo '# etat'; ` +
+	`if command -v ufw >/dev/null 2>&1; then ufw status verbose 2>/dev/null || echo 'illisible: ufw'; fi; ` +
+	`if command -v firewall-cmd >/dev/null 2>&1; then firewall-cmd --state 2>&1; firewall-cmd --list-all 2>/dev/null; fi; ` +
+	`if command -v nft >/dev/null 2>&1; then if nft list ruleset >/dev/null 2>&1; then echo 'lisible: nft'; nft list ruleset 2>/dev/null | grep -E 'hook input|policy ' | head -n 20; else echo 'illisible: nft'; fi; fi; ` +
+	`if command -v iptables >/dev/null 2>&1; then iptables -S INPUT 2>/dev/null || echo 'illisible: iptables'; fi; true`
+
+// FirewallLinuxNormalizer est MULTI-DISTRO : il interprète la sortie de
+// FirewallLinuxCmd. Ordre de décision :
+//  1. un pare-feu ACTIF est constaté (ufw actif, firewalld en marche, chaîne
+//     nftables d'entrée, règles iptables en entrée) : preuve positive ;
+//  2. un outil installé n'a pas pu être lu : trou de collecte qualifié
+//     « droits insuffisants » (on ne conclut pas à l'absence) ;
+//  3. un outil est installé et lisible mais inactif : pare-feu présent et
+//     désactivé (non-conformité) ;
+//  4. aucun outil de pare-feu installé : aucun pare-feu (non-conformité).
+//
+// L'ancien format (sans section « # outils ») reste accepté pour les preuves
+// déjà rapatriées.
 func FirewallLinuxNormalizer(raw []byte) (json.RawMessage, error) {
 	t := strings.ToLower(string(raw))
+	if !strings.Contains(t, "# outils") {
+		return firewallLinuxLegacy(t)
+	}
+	tools := map[string]bool{}
+	var unreadable []string
+	nftReadable := false
+	var iptInput []string
+	for _, l := range lines(raw) {
+		low := strings.ToLower(l)
+		switch {
+		case strings.HasPrefix(low, "outil: "):
+			tools[strings.TrimPrefix(low, "outil: ")] = true
+		case strings.HasPrefix(low, "illisible: "):
+			unreadable = append(unreadable, strings.TrimPrefix(low, "illisible: "))
+		case low == "lisible: nft":
+			nftReadable = true
+		case strings.HasPrefix(l, "-P INPUT ") || strings.HasPrefix(l, "-A INPUT "):
+			iptInput = append(iptInput, l)
+		}
+	}
+
+	// 1. Pare-feu actif constaté.
+	switch {
+	case strings.Contains(t, "status: active"):
+		denyIn := strings.Contains(t, "deny (incoming)") || strings.Contains(t, "reject (incoming)")
+		return fwLinuxEvidence(true, denyIn, "ufw")
+	case firewalldRunning(t):
+		return fwLinuxEvidence(true, !strings.Contains(t, "target: accept"), "firewalld")
+	case strings.Contains(t, "hook input") || strings.Contains(t, "chain input"):
+		denyIn := strings.Contains(t, "policy drop") || strings.Contains(t, "policy reject")
+		return fwLinuxEvidence(true, denyIn, "nftables")
+	case iptablesFiltersInput(iptInput):
+		return fwLinuxEvidence(true, iptablesDefaultDeny(iptInput), "iptables")
+	}
+
+	// 2. Un outil installé n'a pas pu être lu : on ne conclut pas à l'absence.
+	if len(unreadable) > 0 {
+		return nil, fmt.Errorf("droits insuffisants : état du pare-feu illisible (%s) — le compte de service doit pouvoir lire la configuration du pare-feu", strings.Join(unreadable, ", "))
+	}
+
+	// 3. Outil installé, lisible, mais inactif.
+	disabled := func(product string) (json.RawMessage, error) {
+		return json.Marshal(FirewallEvidence{Present: true, Enabled: false, ProfilesTotal: 1, ProfilesEnabled: 0, Product: product})
+	}
+	switch {
+	case strings.Contains(t, "status: inactive"):
+		return disabled("ufw")
+	case strings.Contains(t, "not running"):
+		return disabled("firewalld")
+	case nftReadable:
+		return disabled("nftables")
+	case len(iptInput) > 0:
+		return disabled("iptables")
+	}
+
+	// 4. Aucun outil de pare-feu installé.
+	if len(tools) == 0 {
+		return json.Marshal(FirewallEvidence{Present: false, Product: "aucun"})
+	}
+	return nil, errors.New("état du pare-feu non interprétable")
+}
+
+// firewalldRunning reconnaît la ligne « running » de `firewall-cmd --state`
+// (et non « not running »).
+func firewalldRunning(t string) bool {
+	for _, l := range strings.Split(t, "\n") {
+		if strings.TrimSpace(l) == "running" {
+			return true
+		}
+	}
+	return false
+}
+
+// iptablesFiltersInput : la chaîne INPUT filtre si sa politique n'est pas
+// ACCEPT ou si elle porte au moins une règle.
+func iptablesFiltersInput(rules []string) bool {
+	for _, r := range rules {
+		if strings.HasPrefix(r, "-A INPUT ") || (strings.HasPrefix(r, "-P INPUT ") && !strings.HasSuffix(r, " ACCEPT")) {
+			return true
+		}
+	}
+	return false
+}
+
+// iptablesDefaultDeny : politique d'entrée DROP, ou dernière règle qui rejette
+// tout le trafic restant.
+func iptablesDefaultDeny(rules []string) bool {
+	for _, r := range rules {
+		if r == "-P INPUT DROP" || r == "-P INPUT REJECT" {
+			return true
+		}
+	}
+	if n := len(rules); n > 0 {
+		last := rules[n-1]
+		return last == "-A INPUT -j DROP" || strings.HasPrefix(last, "-A INPUT -j REJECT")
+	}
+	return false
+}
+
+// firewallLinuxLegacy interprète l'ancien format de sonde (ufw + firewalld +
+// nftables concaténés, sans liste d'outils). Sans liste d'outils, une sortie
+// vide ne permet pas de distinguer « aucun pare-feu » de « rien de lisible » :
+// elle reste une erreur de collecte.
+func firewallLinuxLegacy(t string) (json.RawMessage, error) {
 	switch {
 	case strings.Contains(t, "status: active"): // ufw actif
 		denyIn := strings.Contains(t, "deny (incoming)") || strings.Contains(t, "reject (incoming)")

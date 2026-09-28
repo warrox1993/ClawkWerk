@@ -8,9 +8,9 @@ import (
 
 	"github.com/masterzen/winrm"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/audit"
-	"projetcyber/internal/scope"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/audit"
+	"github.com/warrox1993/clawkwerk/internal/scope"
 )
 
 // WinRMSource collecte la preuve d'un hôte Windows par WinRM, en LECTURE SEULE.

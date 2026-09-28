@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"projetcyber/internal/audit"
-	"projetcyber/internal/scope"
+	"github.com/warrox1993/clawkwerk/internal/audit"
+	"github.com/warrox1993/clawkwerk/internal/scope"
 )
 
 // Aucun serveur WinRM live n'est disponible dans ce contexte de test : on

@@ -3,7 +3,7 @@ package assess
 import (
 	"testing"
 
-	"projetcyber/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
 )
 
 // Verrouille la règle de conformité OFFICIELLE : pour un Key Measure au

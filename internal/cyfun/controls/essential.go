@@ -1,6 +1,6 @@
 package controls
 
-import "projetcyber/internal/cyfun"
+import "github.com/warrox1993/clawkwerk/internal/cyfun"
 
 // EssentialControls = contrôles ajoutés au niveau ESSENTIAL, au-delà de
 // Basic+Important. GÉNÉRÉ depuis le Self-Assessment tool ESSENTIAL du CCB

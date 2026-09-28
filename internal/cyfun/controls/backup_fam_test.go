@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
 )
 
 // TestBackupTested1102Evaluator vérifie la logique de PR.DS-11.2 (test des

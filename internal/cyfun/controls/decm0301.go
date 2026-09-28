@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 // DE.CM-03-1 — « End point and network protection tools to monitor end-user

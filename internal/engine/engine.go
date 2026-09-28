@@ -8,12 +8,12 @@ import (
 	"context"
 	"strings"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/audit"
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/scan"
-	"projetcyber/internal/scope"
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/audit"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/scan"
+	"github.com/warrox1993/clawkwerk/internal/scope"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 // Control lie les métadonnées d'un contrôle, son évaluateur, ses commandes de

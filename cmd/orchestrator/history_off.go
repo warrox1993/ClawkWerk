@@ -5,7 +5,7 @@ package main
 import (
 	"errors"
 
-	"projetcyber/internal/session"
+	"github.com/warrox1993/clawkwerk/internal/session"
 )
 
 // saveHistory — variante par DÉFAUT (binaire de la clé bootable).

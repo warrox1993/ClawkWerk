@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Construit l'image live bootable de projetCyber via Debian live-build.
+# Construit l'image live bootable de ClawkWerk via Debian live-build.
 # Prérequis : Debian/Ubuntu + `live-build` + `golang` (voir README.md).
 # NON booté-testé : recette d'après la doc live-build, à valider au banc.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
-BIN="$HERE/config/includes.chroot/opt/projetcyber"
+BIN="$HERE/config/includes.chroot/opt/clawkwerk"
 
 echo "[1/3] Compilation des binaires statiques (CGO_ENABLED=0)…"
 mkdir -p "$BIN"
@@ -24,7 +24,7 @@ lb config \
   --architectures amd64 \
   --binary-images iso-hybrid \
   --debian-installer none \
-  --bootappend-live "boot=live components toram noeject hostname=projetcyber"
+  --bootappend-live "boot=live components toram noeject hostname=clawkwerk"
 
 echo "[3/3] Construction de l'ISO (sudo requis)…"
 sudo lb build

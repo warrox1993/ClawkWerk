@@ -3,11 +3,11 @@ package engine
 import (
 	"time"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/cyfun/controls"
-	"projetcyber/internal/scan"
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/cyfun/controls"
+	"github.com/warrox1993/clawkwerk/internal/scan"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 // ControlsForLevel renvoie le jeu de contrôles à auditer pour un NIVEAU
@@ -151,12 +151,12 @@ func EssentialScannables(now func() time.Time) []Control {
 const (
 	// DE.CM-01.2 — antivirus.
 	psDefenderStatus = "Get-MpComputerStatus | Select-Object AntivirusEnabled,RealTimeProtectionEnabled,AntivirusSignatureAge | ConvertTo-Json"
-	shClamStatus     = "export LC_ALL=C; systemctl is-active clamav-daemon; freshclam --version; stat -c %Y /var/lib/clamav/daily.cvd 2>/dev/null"
+	// (sonde Linux : controls.AntivirusLinuxCmd)
 
-	// DE.CM-01.1 — pare-feu local. MULTI-DISTRO : on concatène ufw + firewalld +
-	// nftables (lecture seule), le normaliseur détecte lequel est actif.
+	// DE.CM-01.1 — pare-feu local. MULTI-DISTRO côté Linux (ufw, firewalld,
+	// nftables, iptables) : voir controls.FirewallLinuxCmd.
 	psFirewallStatus = "Get-NetFirewallProfile | Select-Object Name,Enabled,DefaultInboundAction | ConvertTo-Json"
-	shFirewallStatus = "export LC_ALL=C; ufw status verbose 2>/dev/null; firewall-cmd --state 2>/dev/null; firewall-cmd --list-all 2>/dev/null; nft list ruleset 2>/dev/null | grep -E 'hook input|policy ' | head -n 20"
+	// (sonde Linux : controls.FirewallLinuxCmd)
 
 	// ID.AM-08.2 — correctifs de sécurité. MULTI-DISTRO : auto-détection du
 	// gestionnaire (apt/dnf/zypper) ; émet 4 lignes : gestionnaire, nb correctifs
@@ -197,7 +197,7 @@ func ControlsWithClock(now func() time.Time) []Control {
 			Evaluator: controls.AntivirusEvaluator{},
 			Commands: map[string]scan.CollectCommand{
 				"windows": scan.ReadOnlyCommand("DE.CM-01.2", "windows", psDefenderStatus),
-				"linux":   scan.ReadOnlyCommand("DE.CM-01.2", "linux", shClamStatus),
+				"linux":   scan.ReadOnlyCommand("DE.CM-01.2", "linux", controls.AntivirusLinuxCmd),
 			},
 			Normalizers: map[string]assess.NormalizeFunc{
 				"windows": controls.AntivirusWindowsNormalizer,
@@ -210,7 +210,7 @@ func ControlsWithClock(now func() time.Time) []Control {
 			Evaluator: controls.FirewallEvaluator{},
 			Commands: map[string]scan.CollectCommand{
 				"windows": scan.ReadOnlyCommand("DE.CM-01.1", "windows", psFirewallStatus),
-				"linux":   scan.ReadOnlyCommand("DE.CM-01.1", "linux", shFirewallStatus),
+				"linux":   scan.ReadOnlyCommand("DE.CM-01.1", "linux", controls.FirewallLinuxCmd),
 			},
 			Normalizers: map[string]assess.NormalizeFunc{
 				"windows": controls.FirewallWindowsNormalizer,

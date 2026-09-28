@@ -1,6 +1,6 @@
 package controls
 
-import "projetcyber/internal/cyfun"
+import "github.com/warrox1993/clawkwerk/internal/cyfun"
 
 // ImportantControls = contrôles ajoutés au niveau IMPORTANT (99), au-delà des
 // 34 Basic. GÉNÉRÉ depuis le Self-Assessment tool IMPORTANT du CCB (texte

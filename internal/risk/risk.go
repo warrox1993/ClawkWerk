@@ -6,7 +6,7 @@ package risk
 import (
 	"sort"
 
-	"projetcyber/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/assess"
 )
 
 // HostRisk = risque technique d'un hôte. Score 0 = aucun risque mesuré ; 100 = max.

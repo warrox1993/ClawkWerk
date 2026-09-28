@@ -1,8 +1,8 @@
-# Protocole de validation en pilote — projetCyber
+# Protocole de validation en pilote (ClawkWerk)
 
 Date : 2026-07-04
 Statut : protocole de référence pour les campagnes pilotes.
-Public : consultant projetCyber (dev solo) menant des audits pilotes en Wallonie/Bruxelles.
+Public : consultant utilisant ClawkWerk (dev solo) menant des audits pilotes en Wallonie/Bruxelles.
 
 ## 0. Pourquoi ce protocole
 
@@ -34,7 +34,7 @@ comme test de non-régression.*
 3. **Matrice de couverture** mise à jour : les statuts « d'après-doc » deviennent
    « validé-matériel » là où c'est le cas ; les trous restants sont documentés, jamais
    maquillés en « 100 % ».
-4. Liste des écarts/bugs corrigés + CLAUDE.md/mémoire à jour.
+4. Liste des écarts/bugs corrigés + CLAUDE.md à jour.
 
 ## 2. Périmètre à valider (inventaire)
 
@@ -42,7 +42,7 @@ comme test de non-régression.*
 |---|---|---|
 | **Endpoints Windows/Linux** | Toutes les sondes scannables (Identity, Hardening, Patch, Firewall, AV, Logging, LocalAdmin, Backup, EDR, Encryption, AppControl, BootDevice, TimeSync, LogMgmt, FIM, Domain, Hardware, Capacity, VulnScanner, AccessReview, RemoteMFA…) | Section « Couverture de collecte » du rapport HTML ; `internal/engine/registry.go` |
 | **Transports** | SSH (Linux), WinRM (Windows), API (UniFi/Sophos) — flux auth + exécution réels | `internal/scan/` |
-| **Équipements réseau** | 10 marques × 3 contrôles (pare-feu, segmentation, journalisation) | `projetcyber -coverage` |
+| **Équipements réseau** | 10 marques × 3 contrôles (pare-feu, segmentation, journalisation) | `orchestrator -coverage` |
 | **Locales** | Windows **FR, NL, DE, EN** ; Linux apt/dnf/zypper/pacman/apk | — |
 | **Livraison** | ISO live-boot (stateless, toram) | `live/` |
 
@@ -82,7 +82,7 @@ indisponibilité du compte de service, ou tout doute sur le caractère read-only
 
 Pour **chaque** sonde, sur **chaque** environnement pertinent :
 
-1. **Preflight** — lancer `projetcyber -preflight -transport remote -creds <json> -known-hosts <path>`
+1. **Preflight** — lancer `orchestrator -preflight -scope <json> -transport remote -creds <json> -known-hosts <path>`
    sur le périmètre. Confirmer que le compte lit la ressource (statut « lisible »). Si
    « droits insuffisants » → provisionner côté client, jamais escalader.
 2. **Capturer la sortie BRUTE** — exécuter la commande de la sonde (elle est dans le code,
@@ -155,7 +155,7 @@ c'est possible, sinon matériel emprunté :
 2. **Bibliothèque de fixtures golden** committée (tests de non-régression).
 3. **Matrice de couverture** actualisée (statuts réels).
 4. **Liste des écarts** rencontrés + correctifs appliqués.
-5. Mise à jour `CLAUDE.md` + mémoire (`projetcyber-design-decisions`).
+5. Mise à jour de `CLAUDE.md` et du `CHANGELOG.md`.
 
 ## 11. Annexe — Fiche de validation par sonde (modèle à remplir)
 

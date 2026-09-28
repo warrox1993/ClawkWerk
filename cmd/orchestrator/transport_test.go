@@ -3,10 +3,12 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
-	"projetcyber/internal/scan"
+	"github.com/warrox1993/clawkwerk/internal/scan"
+	"github.com/warrox1993/clawkwerk/internal/scope"
 )
 
 func TestBuildSource_File(t *testing.T) {
@@ -63,5 +65,58 @@ func TestLoadCreds(t *testing.T) {
 	// Le secret est accessible pour la couche transport mais jamais sérialisé.
 	if string(c.Secret()) != "s3cret" {
 		t.Errorf("secret non chargé")
+	}
+}
+
+func writeFile(t *testing.T, name, content string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestLoadScope(t *testing.T) {
+	now := time.Date(2026, 9, 28, 10, 0, 0, 0, time.UTC)
+	ok := writeFile(t, "scope.json", `{"client":"ACME","hosts":[{"id":"L1","os":"linux","address":"l1","transport":"ssh","cred_ref":"ro"}]}`)
+	sc, err := loadScope(ok, now)
+	if err != nil || len(sc.Hosts) != 1 {
+		t.Fatalf("périmètre valide refusé : %v", err)
+	}
+	typo := writeFile(t, "scope.json", `{"client":"ACME","hosts":[{"id":"L1","os":"linx","address":"l1","transport":"ssh","cred_ref":"ro"}]}`)
+	if _, err := loadScope(typo, now); err == nil {
+		t.Error("une plateforme inconnue doit être refusée")
+	}
+	if _, err := loadScope("", now); err == nil {
+		t.Error("-scope vide doit être refusé")
+	}
+	// L'exemple livré est valide pour la CLI.
+	if _, err := loadScope(filepath.Join("..", "..", "sample", "scope.json"), now); err != nil {
+		t.Errorf("sample/scope.json refusé : %v", err)
+	}
+}
+
+func TestResolveCreds(t *testing.T) {
+	sc := scope.AuditScope{Hosts: []scope.ScopedHost{{CredRef: "ro-win"}, {CredRef: "ro-lnx"}, {CredRef: "ro-win"}}}
+
+	// Mode file sans -creds : un credential factice par référence.
+	creds, err := resolveCreds("file", "", sc)
+	if err != nil || len(creds) != 2 || creds["ro-win"] == nil || creds["ro-lnx"] == nil {
+		t.Fatalf("mode file : %v, %v", err, creds)
+	}
+	// Mode remote sans -creds : refus explicite.
+	if _, err := resolveCreds("remote", "", sc); err == nil {
+		t.Error("mode remote sans -creds doit être refusé")
+	}
+	// Référence manquante dans le fichier : refus avant toute connexion.
+	partial := writeFile(t, "creds.json", `{"ro-win":{"username":"svc","secret":"s"}}`)
+	if _, err := resolveCreds("remote", partial, sc); err == nil || !strings.Contains(err.Error(), "ro-lnx") {
+		t.Errorf("référence manquante non signalée : %v", err)
+	}
+	full := writeFile(t, "creds.json", `{"ro-win":{"username":"svc","secret":"s"},"ro-lnx":{"username":"audit","secret":"t"}}`)
+	creds, err = resolveCreds("remote", full, sc)
+	if err != nil || string(creds["ro-lnx"].Secret()) != "t" {
+		t.Fatalf("fichier complet refusé : %v", err)
 	}
 }

@@ -8,11 +8,11 @@ import (
 
 	"golang.org/x/crypto/ssh/knownhosts"
 
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/cyfun/controls"
-	"projetcyber/internal/engine"
-	"projetcyber/internal/scan"
-	"projetcyber/internal/scope"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/cyfun/controls"
+	"github.com/warrox1993/clawkwerk/internal/engine"
+	"github.com/warrox1993/clawkwerk/internal/scan"
+	"github.com/warrox1993/clawkwerk/internal/scope"
 )
 
 // normalizeLevel valide et normalise le niveau d'assurance saisi en CLI
@@ -147,6 +147,56 @@ func loadCreds(path string) (map[string]*scope.Credential, error) {
 	creds := make(map[string]*scope.Credential, len(raw))
 	for ref, c := range raw {
 		creds[ref] = scope.NewCredential(ref, c.Username, []byte(c.Secret))
+	}
+	return creds, nil
+}
+
+// loadScope charge le périmètre fourni (-scope) et refuse toute plateforme
+// inconnue du registre : une faute de frappe dans « os » donnerait sinon des
+// « non applicable » silencieux au lieu d'un audit.
+func loadScope(path string, now time.Time) (scope.AuditScope, error) {
+	if path == "" {
+		return scope.AuditScope{}, fmt.Errorf("-scope requis : fichier JSON du périmètre fourni par le client")
+	}
+	sc, err := scope.LoadFile(path, now)
+	if err != nil {
+		return scope.AuditScope{}, err
+	}
+	for _, h := range sc.Hosts {
+		if !engine.IsKnownPlatform(h.Ref.OS) {
+			return scope.AuditScope{}, fmt.Errorf("périmètre : plateforme %q inconnue pour %s (connues : %v)", h.Ref.OS, h.Ref.ID, engine.KnownPlatforms())
+		}
+	}
+	return sc, nil
+}
+
+// resolveCreds fournit les credentials du périmètre. En mode remote, le fichier
+// -creds est obligatoire et doit couvrir chaque cred_ref du périmètre : on
+// échoue AVANT toute connexion plutôt que de découvrir le trou en cours d'audit.
+// En mode file (preuves déjà rapatriées, aucune connexion), un credential
+// factice par référence suffit à tracer le compte dans le journal.
+func resolveCreds(transport, credsPath string, sc scope.AuditScope) (map[string]*scope.Credential, error) {
+	if credsPath == "" {
+		if transport == "remote" {
+			return nil, fmt.Errorf("mode remote : -creds requis (comptes de service en lecture seule fournis par le client)")
+		}
+		creds := make(map[string]*scope.Credential)
+		for _, ref := range sc.CredRefs() {
+			creds[ref] = scope.NewCredential(ref, ref, []byte("demo-not-a-real-secret"))
+		}
+		return creds, nil
+	}
+	creds, err := loadCreds(credsPath)
+	if err != nil {
+		return nil, fmt.Errorf("erreur de lecture des credentials : %w", err)
+	}
+	for _, ref := range sc.CredRefs() {
+		if _, ok := creds[ref]; !ok {
+			for _, c := range creds {
+				c.Zero()
+			}
+			return nil, fmt.Errorf("credentials : référence %q du périmètre absente de %s", ref, credsPath)
+		}
 	}
 	return creds, nil
 }

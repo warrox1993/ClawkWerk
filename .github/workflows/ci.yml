@@ -1,0 +1,93 @@
+# Intégration continue : formatage, analyse statique, tests (avec et sans
+# l'historique SQLite), vulnérabilités connues et build des binaires statiques.
+# Actions épinglées par SHA de commit (version indiquée en commentaire).
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  STATICCHECK_VERSION: v0.8.1  # staticcheck 2026.2.1
+  GOVULNCHECK_VERSION: v1.8.0
+
+jobs:
+  verifier:
+    name: Vérifier et tester
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: gofmt (échec si un fichier n'est pas formaté)
+        run: |
+          fichiers="$(gofmt -l .)"
+          if [ -n "$fichiers" ]; then
+            echo "Fichiers à formater avec gofmt -w :"
+            echo "$fichiers"
+            exit 1
+          fi
+
+      - name: go mod verify
+        run: go mod verify
+
+      - name: go vet
+        run: |
+          go vet ./...
+          go vet -tags history ./...
+
+      - name: staticcheck
+        run: |
+          go install "honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION}"
+          staticcheck ./...
+          staticcheck -tags history ./...
+
+      - name: Tests (détecteur de courses)
+        run: go test -race -count=1 ./...
+
+      - name: Tests avec l'historique SQLite (-tags history)
+        run: go test -race -count=1 -tags history ./...
+
+      - name: govulncheck
+        run: |
+          go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}"
+          govulncheck ./...
+          govulncheck -tags history ./...
+
+      - name: Build des binaires statiques
+        run: |
+          make build build-consultant
+          file bin/*
+          for b in bin/*; do
+            file "$b" | grep -q "statically linked" || { echo "$b n'est pas statique"; exit 1; }
+          done
+
+      # Les empreintes sont écrites HORS du dépôt : un fichier non suivi dans
+      # l'arbre changerait l'information VCS embarquée (vcs.modified) et donc
+      # le binaire.
+      - name: Build reproductible (deux builds, mêmes empreintes)
+        run: |
+          sha256sum bin/* > "$RUNNER_TEMP/empreintes.txt"
+          rm -rf bin
+          make build build-consultant
+          sha256sum -c "$RUNNER_TEMP/empreintes.txt"
+
+      - name: Démo de bout en bout
+        run: |
+          ./bin/orchestrator -out rapport-demo.json -html rapport-demo.html
+          ./bin/orchestrator -preflight
+          ./bin/orchestrator -coverage > /dev/null

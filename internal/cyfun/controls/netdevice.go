@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sort"
 
-	"projetcyber/internal/assess"
-	"projetcyber/internal/cyfun"
-	"projetcyber/internal/survey"
+	"github.com/warrox1993/clawkwerk/internal/assess"
+	"github.com/warrox1993/clawkwerk/internal/cyfun"
+	"github.com/warrox1993/clawkwerk/internal/survey"
 )
 
 // === Framework d'audit des ÉQUIPEMENTS RÉSEAU ===
