@@ -1,4 +1,4 @@
-# projetCyber — Contexte du projet
+# ClawkWerk : contexte du projet
 
 ## Vue d'ensemble
 Application d'audit et de remédiation en cybersécurité pour PME belges,
@@ -12,9 +12,8 @@ lui-même aligné sur NIST CSF 2.0. S'inscrit dans la conformité NIS2
   remédiation, jamais de certification officielle délivrée.
 - Toute sortie/rapport doit mentionner explicitement cette distinction.
 
-## Cible
-PME et entreprises belges. Lancement : Wallonie et Bruxelles,
-contact physique privilégié (pas de vente 100% à distance au démarrage).
+## Public visé
+PME et entreprises belges soumises (ou se préparant) à NIS2.
 
 ## Niveau CyFun ciblé
 Les **trois** niveaux d'assurance CyFun 2025 sont chargés et vérifiés à
@@ -33,10 +32,16 @@ l'instant, déclaratifs. Les IDs officiels non normalisés de la CCB
 ne jamais les « corriger », sous peine de diverger de l'autorité.
 
 ## Barème & conformité CyFun 2025 Basic (OFFICIEL)
-Source : onglets « Maturity Levels » et « BASIC Summary » du fichier
-officiel CCB `CyFun2025_ Self-Assessment_tool_BASIC_v2026_02_20.xlsx`
-(présent dans ~/Téléchargements). Documents classés **TLP:AMBER**
-(distribution restreinte) — à manipuler en conséquence.
+Sources publiques du CCB, téléchargeables sans compte sur
+https://cyfun.eu/en/cyberfundamentals-framework-2025 :
+- livrets CyFun 2025 BASIC / IMPORTANT / ESSENTIAL (version 2025-10-01) :
+  texte des exigences et liste des Key Measures ;
+- outils d'auto-évaluation Excel par niveau (onglets « Maturity Levels » et
+  « Summary » : échelle 1-5, agrégation, seuils) ;
+- Conformity Assessment Scheme (CAS) : seuils de conformité par niveau.
+Le livret autorise la reproduction d'extraits à des fins non commerciales,
+source citée : les textes d'exigences sont repris tels quels avec cette
+mention (voir README).
 
 Hiérarchie à 3 niveaux : Category (ex. DE.CM) > Subcategory (DE.CM-01)
 > Requirement (DE.CM-01.2). C'est le **Requirement** qui est scoré.
@@ -168,10 +173,9 @@ scores, progression, échéances CCB). Ne vit jamais sur la clé bootable.
   travail : Fortinet, pfSense/OPNsense, Cisco, Ubiquiti, Sophos,
   SonicWall, WatchGuard, MikroTik, Palo Alto, Zyxel — à confirmer
   selon les clients réels rencontrés)
-- (RÉSOLU — session 1) Seuils de conformité officiels : trouvés dans
-  le Self-Assessment tool CCB (~/Téléchargements) et recoupés par
-  recherche web. Voir la section « Barème & conformité CyFun 2025 Basic ».
-  Pour info phases ultérieures : IMPORTANT ≈ 3/5, ESSENTIAL ≥ 3,5/5.
+- (RÉSOLU) Seuils de conformité officiels : repris des outils
+  d'auto-évaluation publics du CCB et du CAS. Voir la section « Barème &
+  conformité CyFun 2025 Basic ».
 
 ## État d'implémentation (à jour)
 Pipeline complet et testé (Go, binaire statique CGo-free) :
@@ -191,16 +195,32 @@ parité de calcul CCB à 100 % : agrégation hiérarchique + N/A) →
   questionnaire, jamais 0), verdict BLOQUÉ si des contrôles restent non évalués
   (« AUDIT INCOMPLET »), détection de droits insuffisants (sans élévation), mode
   `-preflight` de reconnaissance du périmètre de droits.
-- **CLI orchestrateur** : `-level -evidence -responses -transport -creds
-  -known-hosts -out -html -xlsx -pdf -overrides -coverage -preflight -history`
-  (SQLite historique découplé via build tag `history`, hors clé USB).
+- **CLI orchestrateur** : `-scope -level -evidence -responses -transport
+  -creds -known-hosts -out -html -xlsx -pdf -overrides -coverage -preflight
+  -capture -history` (SQLite historique découplé via build tag `history`,
+  hors clé USB). Le périmètre vient TOUJOURS d'un fichier `-scope` (exemple :
+  `sample/scope.json`), jamais du code.
+- **Questionnaire web** : `-level basic|important|essential`, écoute
+  127.0.0.1:8099 uniquement, jeton anti-CSRF + contrôle Origin/Host.
+- **Sondes Linux** : une sonde se termine TOUJOURS par un code de sortie nul
+  quand elle a pu observer (le transport SSH traite un code non nul comme une
+  collecte échouée). « Outil absent » et « outil illisible faute de droits »
+  sont deux cas distincts : le premier peut être une non-conformité, le second
+  est un trou de collecte « droits insuffisants ». Tests :
+  `internal/engine/probes_shell_test.go`.
 - **Reste** : valider les adaptateurs réseau sur matériel réel ; produire/booter
   l'ISO live (recette dans `live/`, jamais démarrée) ; commandes Windows
   downlevel *réelles* pour Win7 (aujourd'hui gérées par repli + couverture).
 
-Détails session par session dans la mémoire `projetcyber-design-decisions`.
+Historique des versions : `CHANGELOG.md`. Documents de méthode : `docs/methode/`.
 
 ## Style de collaboration attendu
 Développeur solo, connaît déjà Python/Java/C#, apprend Go en
 parallèle du projet. Préférer des explications claires sur le "pourquoi"
 des choix Go (idiomes, stdlib) plutôt que du code non commenté.
+
+## Vérifications avant chaque commit
+`make check` (gofmt, vet, staticcheck, tests -race avec et sans
+`-tags history`, govulncheck, go mod verify), identique à la CI
+(`.github/workflows/ci.yml`). Go n'étant pas forcément installé sur le poste,
+tout peut tourner dans l'image officielle `golang` (Podman ou Docker).

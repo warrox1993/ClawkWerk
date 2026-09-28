@@ -2,16 +2,15 @@
 
 Date : 2026-07-04
 Statut : design validé (brainstorming), en attente de relecture avant plan d'implémentation.
-Chantier : #3 « Profondeur technique » de la feuille de route « prod + le plus
-puissant du marché belge 2026 ».
+Chantier : #3 « Profondeur technique » de la feuille de route du projet.
 
 ## 1. Objectif
 
 Rendre **scannables** un maximum de contrôles CyFun aux niveaux **Important**
 (99 contrôles propres, aujourd'hui tous déclaratifs) et **Essential** (85 propres,
 tous déclaratifs) — le **plafond honnête** : tout ce qu'un scan lecture-seule peut
-prouver, Key Measures d'abord. Plus l'automatisation dépasse le questionnaire des
-concurrents, plus l'écart se creuse.
+prouver, Key Measures d'abord. Chaque contrôle rendu scannable remplace une
+déclaration par une preuve mesurée.
 
 Objectif de puissance associé : un **score de risque technique par hôte**
 (corrélation inter-contrôles), livré dans cette spec.
@@ -91,7 +90,7 @@ Partial/Fail` mesurés), **jamais** des attestations de repli ni du questionnair
 
 Identique à la méthode éprouvée pour Basic, à l'échelle des 184 contrôles :
 1. Fan-out d'agents extrayant la guidance des Booklets IMPORTANT + ESSENTIAL +
-   Key_Measures PDF (docs CCB dans ~/Téléchargements).
+   Key_Measures PDF (documents CyFun 2025 publiés par le CCB sur cyfun.eu).
 2. Chaque contrôle classé **SCAN / MIXTE / ORG** ET **rattaché à une famille**
    (sonde existante ou à créer).
 3. Sortie = **backlog priorisé** : Key Measures d'abord, puis par valeur de preuve,
