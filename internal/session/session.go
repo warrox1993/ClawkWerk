@@ -20,7 +20,13 @@ const schemaVersion = "1.0"
 
 // Disclaimer légal obligatoire, présent dans toute sortie (cf. positionnement
 // « préparateur à la conformité », pas organisme de certification).
-const Disclaimer = "Auto-évaluation assistée — ne constitue pas une certification officielle CyFun (réservée aux CAB accrédités BELAC)."
+const Disclaimer = "Auto-évaluation assistée — ne constitue ni une vérification (niveaux Basic et Important) ni une certification (niveau Essential) CyFun, ni une présomption de conformité NIS2 : celles-ci sont délivrées par un organisme d’évaluation de la conformité (CAB) accrédité par BELAC et autorisé par le CCB."
+
+// NIS2Note situe l'auto-évaluation dans le dispositif belge NIS2 (annexe
+// légale des rapports). Source : CCB, https://atwork.safeonweb.be/nis2
+// (page consultée le 28/09/2026) ; seuls la loi du 26 avril 2024 et l'arrêté
+// royal du 9 juin 2024 publiés au Moniteur belge font foi.
+const NIS2Note = "Cadre NIS2 (Belgique) : loi du 26 avril 2024 et arrêté royal du 9 juin 2024. Le CCB recommande le référentiel CyberFundamentals (CyFun) pour mettre en œuvre les mesures de gestion des risques ; une entité essentielle bénéficie d'une présomption de conformité après une vérification ou certification CyFun, ou une certification ISO/IEC 27001, délivrée par un CAB accrédité et autorisé par le CCB, ou fait l'objet d'une inspection du CCB. Une auto-évaluation comme celle-ci sert à préparer ces démarches ; elle n'en tient pas lieu. Source : CCB, atwork.safeonweb.be/nis2."
 
 // Framework identifie le référentiel et le niveau audités.
 type Framework struct {

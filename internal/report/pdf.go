@@ -229,6 +229,7 @@ func PDF(v View) ([]byte, error) {
 	// --- 6. Annexe légale ---
 	heading("6. Annexe légale")
 	banner(s.Disclaimer)
+	para(v.NIS2Note)
 	para("Traitement des données : seules les données strictement nécessaires à l'audit " +
 		"sont collectées (RGPD, principe de minimisation). Les identifiants d'accès fournis " +
 		"par le client ne sont jamais conservés ni inscrits dans ce rapport. Le présent " +

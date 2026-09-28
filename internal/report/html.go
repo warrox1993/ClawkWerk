@@ -188,6 +188,7 @@ audités.</p>
 
 <h2>6. Annexe légale</h2>
 <p class="disclaimer">{{.Session.Disclaimer}}</p>
+<p><small>{{.NIS2Note}}</small></p>
 <p><small>Traitement des données : seules les données strictement nécessaires à l'audit sont collectées
 (RGPD, minimisation). Les identifiants d'accès fournis par le client ne sont jamais conservés ni
 inscrits dans ce rapport. Le présent document constitue une auto-évaluation assistée et n'engage pas

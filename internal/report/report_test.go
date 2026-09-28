@@ -128,3 +128,24 @@ func TestXLSX_AuditIncompletEtCategories(t *testing.T) {
 		t.Fatal("maturité par catégorie absente du XLSX")
 	}
 }
+
+// Positionnement légal : chaque rapport rappelle qu'il ne s'agit ni d'une
+// vérification ni d'une certification CyFun, ni d'une présomption de
+// conformité NIS2, et cite la source officielle du CCB.
+func TestRapports_PositionnementNIS2(t *testing.T) {
+	v := Build(sessionForTest())
+	h, err := HTML(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range []string{"ni une présomption de conformité NIS2", "autorisé par le CCB", "atwork.safeonweb.be/nis2"} {
+		if !strings.Contains(string(h), s) {
+			t.Errorf("HTML : mention %q absente", s)
+		}
+	}
+	for _, interdit := range []string{"certifié", "certifie votre", "conforme NIS2"} {
+		if strings.Contains(strings.ToLower(string(h)), interdit) {
+			t.Errorf("HTML : formulation trompeuse %q", interdit)
+		}
+	}
+}
