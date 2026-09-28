@@ -12,7 +12,7 @@ var ImportantControls = []DeclarativeControl{
 		"L'exigence est-elle documentée (politique/procédure écrite, approuvée et revue) ?",
 		"Est-elle appliquée et vérifiée dans les faits ?"),
 	impDecl("GV.OC-03.2", cyfun.Govern, "GV.OC", "GV.OC-03", false,
-		"Legal and regulatory obligations related to information and cybersecurity shall be continuously managed to ensure they remain accurate, up to date, and effectively applied.",
+		"Legal, regulatory, and contractual obligations related to information and cybersecurity shall be continuously managed to ensure they remain accurate, up to date, and effectively applied.",
 		"L'exigence est-elle documentée (politique/procédure écrite, approuvée et revue) ?",
 		"Est-elle appliquée et vérifiée dans les faits ?"),
 	impDecl("GV.OC-04.1", cyfun.Govern, "GV.OC", "GV.OC-04", false,

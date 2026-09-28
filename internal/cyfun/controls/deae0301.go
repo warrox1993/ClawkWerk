@@ -11,7 +11,7 @@ import (
 )
 
 // DE.AE-03.1 — « The logging functionality of protection and detection tools
-// shall be enabled. Logs shall be backed up and kept for a predefined period,
+// shall be enabled. Logs shall be backed up and retained for a predefined period,
 // and regularly reviewed to identify unusual or potentially harmful activity. »
 // KEY MEASURE. Contrôle PARTIELLEMENT scannable : on constate sur l'hôte que la
 // journalisation des OUTILS de protection/détection est bien ACTIVE (audit de
@@ -34,7 +34,7 @@ var DEAE0301Meta = cyfun.ControlMeta{
 	Function:    cyfun.Detect,
 	Category:    "DE.AE",
 	Subcategory: "DE.AE-03",
-	Requirement: "The logging functionality of protection and detection tools shall be enabled. Logs shall be backed up and kept for a predefined period, and regularly reviewed to identify unusual or potentially harmful activity.",
+	Requirement: "The logging functionality of protection and detection tools shall be enabled. Logs shall be backed up and retained for a predefined period, and regularly reviewed to identify unusual or potentially harmful activity.",
 	Level:       "Basic",
 	KeyMeasure:  true,
 }
