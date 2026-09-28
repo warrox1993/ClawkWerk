@@ -36,7 +36,9 @@ func main() {
 	transport := flag.String("transport", "file", "mode de collecte : file (preuves locales) | remote (SSH/WinRM sans agent)")
 	credsPath := flag.String("creds", "", "fichier JSON des credentials read-only fournis par le client (mode remote)")
 	knownHosts := flag.String("known-hosts", "", "fichier known_hosts pour vérifier les clés d'hôte SSH (requis en mode remote)")
-	winrmInsecure := flag.Bool("winrm-insecure", false, "désactiver la vérification TLS WinRM (LABO UNIQUEMENT)")
+	winrmInsecure := flag.Bool("winrm-insecure", false, "désactiver la vérification TLS WinRM (LABO UNIQUEMENT ; préférer -winrm-ca)")
+	winrmAuth := flag.String("winrm-auth", "ntlm", "authentification WinRM : ntlm (défaut, comptes locaux et de domaine) | basic (si le client l'a activé)")
+	winrmCA := flag.String("winrm-ca", "", "fichier PEM de l'autorité qui a émis le certificat WinRM des hôtes (PKI interne, certificat auto-signé exporté)")
 	timeout := flag.Duration("timeout", 15*time.Second, "délai maximum par connexion/commande distante")
 	coverage := flag.Bool("coverage", false, "afficher la matrice de couverture des équipements réseau puis quitter")
 	preflight := flag.Bool("preflight", false, "reconnaissance du périmètre de droits (lecture seule) : teste ce que le compte de service peut lire, puis quitte — aucune élévation de privilèges")
@@ -87,7 +89,7 @@ func main() {
 	}()
 
 	// Source de collecte selon le mode choisi (file par défaut, remote SSH/WinRM).
-	src, err := buildSource(*transport, *evidenceDir, *knownHosts, *winrmInsecure, *timeout)
+	src, err := buildSource(*transport, *evidenceDir, *knownHosts, winrmOptions{Insecure: *winrmInsecure, Auth: *winrmAuth, CAFile: *winrmCA}, *timeout)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "erreur de configuration du transport :", err)
 		os.Exit(1)

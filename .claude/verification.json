@@ -1,0 +1,6 @@
+{
+  "stop": true,
+  "commande": "podman run --rm -v \"$PWD\":/src:ro -v clawkwerk-gomod:/go/pkg/mod -v clawkwerk-gocache:/root/.cache/go-build -w /src -e GOFLAGS=-buildvcs=false docker.io/library/golang:1.26.8 sh -c 'test -z \"$(gofmt -l .)\" && go vet ./... && go test ./...'",
+  "commande_complete": "podman run --rm -v \"$PWD\":/src -v clawkwerk-gomod:/go/pkg/mod -v clawkwerk-gocache:/root/.cache/go-build -w /src -e GOCACHE=/root/.cache/go-build -e GOFLAGS=-buildvcs=false docker.io/library/golang:1.26.8 make check",
+  "delai": 600
+}

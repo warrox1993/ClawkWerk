@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -95,7 +96,14 @@ func printNetCoverage() {
 // exige un fichier known_hosts. Un outil qui audite la sécurité ne se connecte
 // jamais à un hôte non vérifié (risque MITM) — d'où l'échec explicite si
 // -known-hosts manque.
-func buildSource(transport, evidenceDir, knownHostsPath string, winrmInsecure bool, timeout time.Duration) (scan.Source, error) {
+// winrmOptions regroupe les réglages WinRM de la ligne de commande.
+type winrmOptions struct {
+	Insecure bool   // -winrm-insecure : vérification TLS désactivée (labo)
+	Auth     string // -winrm-auth : ntlm (défaut) | basic
+	CAFile   string // -winrm-ca : autorité PEM qui a émis le certificat WinRM des hôtes
+}
+
+func buildSource(transport, evidenceDir, knownHostsPath string, wopt winrmOptions, timeout time.Duration) (scan.Source, error) {
 	switch transport {
 	case "file":
 		return scan.NewFileSource(evidenceDir), nil
@@ -109,14 +117,30 @@ func buildSource(transport, evidenceDir, knownHostsPath string, winrmInsecure bo
 			return nil, fmt.Errorf("known_hosts illisible (%s) : %w", knownHostsPath, err)
 		}
 		winrm := scan.NewWinRMSource(true, timeout)
-		winrm.Insecure = winrmInsecure // ne désactiver la vérif TLS qu'en labo
+		winrm.Insecure = wopt.Insecure // ne désactiver la vérif TLS qu'en labo
+		if wopt.Auth != "" {
+			if !scan.ValidWinRMAuth(wopt.Auth) {
+				return nil, fmt.Errorf("-winrm-auth %q inconnu (attendu : ntlm | basic)", wopt.Auth)
+			}
+			winrm.Auth = wopt.Auth
+		}
+		if wopt.CAFile != "" {
+			ca, err := os.ReadFile(wopt.CAFile)
+			if err != nil {
+				return nil, fmt.Errorf("autorité WinRM illisible (%s) : %w", wopt.CAFile, err)
+			}
+			if !x509.NewCertPool().AppendCertsFromPEM(ca) {
+				return nil, fmt.Errorf("autorité WinRM %s : aucun certificat PEM valide", wopt.CAFile)
+			}
+			winrm.CACert = ca
+		}
 		return scan.RemoteSource{
 			SSH:   scan.NewSSHSource(hostKey, timeout),
 			WinRM: winrm,
 			// Transport API pour les équipements sans CLI (UniFi), pilotés par API
-			// (Sophos), et le tenant Microsoft 365 (Graph read-only). winrmInsecure
+			// (Sophos), et le tenant Microsoft 365 (Graph read-only). wopt.Insecure
 			// sert de drapeau TLS-labo commun.
-			API: scan.NewAPISource(timeout, winrmInsecure, scan.NewUniFiClient(), scan.NewSophosClient(), scan.Microsoft365Client{}),
+			API: scan.NewAPISource(timeout, wopt.Insecure, scan.NewUniFiClient(), scan.NewSophosClient(), scan.Microsoft365Client{}),
 		}, nil
 
 	default:

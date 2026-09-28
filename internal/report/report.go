@@ -80,6 +80,8 @@ type View struct {
 	// HostRisks = indicateur de risque TECHNIQUE par hôte (constats scannés
 	// seulement) — aide au triage, distincte du verdict de conformité CyFun.
 	HostRisks []risk.HostRisk
+	// NIS2Note situe l'auto-évaluation dans le dispositif belge NIS2 (annexe légale).
+	NIS2Note string
 }
 
 // Build projette une session en modèle de vue : regroupe les contrôles par
@@ -125,6 +127,7 @@ func Build(s session.AuditSession) View {
 
 	return View{
 		Session:     s,
+		NIS2Note:    session.NIS2Note,
 		Groups:      groups,
 		Remediation: remediationPlan(s.Results, kmThreshold, totalThreshold),
 		Excellence:  excellence,

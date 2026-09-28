@@ -72,7 +72,7 @@ var DeclarativeControls = []DeclarativeControl{
 		"Un inventaire des actifs d'infrastructure (matériel, réseau, cloud) est-il documenté ?",
 		"Est-il tenu à jour et revu lors des changements ?"),
 	// ID.AM-02.1 est désormais SCANNABLE (voir idam0201.go).
-	decl("ID.AM-5.1", cyfun.Identify, "ID.AM", "ID.AM-5", false,
+	decl("ID.AM-5.1", cyfun.Identify, "ID.AM", "ID.AM-05", false, // sous-catégorie ID.AM-05 (ID d'exigence tel qu'écrit par le CCB)
 		"The organisation’s assets shall be prioritised based on classification, criticality, and business value.",
 		"Les actifs sont-ils classifiés/priorisés (criticité, valeur métier) de façon documentée ?",
 		"Cette priorisation est-elle réellement utilisée pour les décisions de sécurité ?"),

@@ -113,3 +113,39 @@ func TestXLSX_IsValidZipWithSheet(t *testing.T) {
 		t.Errorf("feuille de synthèse incomplète: %s", sheet)
 	}
 }
+
+// Le classeur XLSX ne doit jamais afficher « NON CONFORME » pour un audit
+// incomplet (verdict bloqué), et reprend la maturité par catégorie.
+func TestXLSX_AuditIncompletEtCategories(t *testing.T) {
+	sess := session.AuditSession{Framework: session.Framework{Level: "Basic"}}
+	sess.Conformity = session.ConformitySummary{Incomplete: true, UnassessedControls: []string{"GV.OC-03.1"},
+		Categories: []session.CategoryScore{{Category: "GV.OC", Function: "GOVERN", Documentation: 3, Implementation: 2, Maturity: 2.5}}}
+	xml := sheetXML(Build(sess))
+	if strings.Contains(xml, "NON CONFORME") || !strings.Contains(xml, "AUDIT INCOMPLET") {
+		t.Fatal("audit incomplet : le verdict XLSX doit être « AUDIT INCOMPLET »")
+	}
+	if !strings.Contains(xml, "GV.OC") {
+		t.Fatal("maturité par catégorie absente du XLSX")
+	}
+}
+
+// Positionnement légal : chaque rapport rappelle qu'il ne s'agit ni d'une
+// vérification ni d'une certification CyFun, ni d'une présomption de
+// conformité NIS2, et cite la source officielle du CCB.
+func TestRapports_PositionnementNIS2(t *testing.T) {
+	v := Build(sessionForTest())
+	h, err := HTML(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range []string{"ni une présomption de conformité NIS2", "autorisé par le CCB", "atwork.safeonweb.be/nis2"} {
+		if !strings.Contains(string(h), s) {
+			t.Errorf("HTML : mention %q absente", s)
+		}
+	}
+	for _, interdit := range []string{"certifié", "certifie votre", "conforme NIS2"} {
+		if strings.Contains(strings.ToLower(string(h)), interdit) {
+			t.Errorf("HTML : formulation trompeuse %q", interdit)
+		}
+	}
+}

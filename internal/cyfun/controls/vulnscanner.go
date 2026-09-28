@@ -30,7 +30,7 @@ type VulnScannerEvidence struct {
 // VulnScannerWinCmd (LECTURE SEULE) : liste les services dont le nom correspond à un
 // scanner/agent de vulnérabilités connu et en cours d'exécution ; émet le JSON
 // {scanner_present, scanner_name}.
-const VulnScannerWinCmd = `$s=@(Get-Service 2>$null | Where-Object {$_.Name -match 'Tenable|Nessus|Qualys|ir_agent|Rapid7|GVM|openvas'} | Where-Object {$_.Status -eq 'Running'}); [pscustomobject]@{scanner_present=($s.Count -gt 0); scanner_name=(($s | Select-Object -First 1).Name)} | ConvertTo-Json`
+const VulnScannerWinCmd = WinPre + `$re='Tenable|Nessus|Qualys|ir_agent|Rapid7|GVM|openvas'; ` + WinAutoServices + `[pscustomobject]@{scanner_present=($S.Count -gt 0); scanner_name=$(if($S.Count){$S[0]}else{$null})}|ConvertTo-Json`
 
 // VulnScannerLinuxCmd (LECTURE SEULE) : teste les services d'agents de vulnérabilités
 // connus, puis, à défaut, la présence des binaires en ligne de commande. Émet deux

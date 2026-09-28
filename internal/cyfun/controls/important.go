@@ -12,7 +12,7 @@ var ImportantControls = []DeclarativeControl{
 		"L'exigence est-elle documentée (politique/procédure écrite, approuvée et revue) ?",
 		"Est-elle appliquée et vérifiée dans les faits ?"),
 	impDecl("GV.OC-03.2", cyfun.Govern, "GV.OC", "GV.OC-03", false,
-		"Legal and regulatory obligations related to information and cybersecurity shall be continuously managed to ensure they remain accurate, up to date, and effectively applied.",
+		"Legal, regulatory, and contractual obligations related to information and cybersecurity shall be continuously managed to ensure they remain accurate, up to date, and effectively applied.",
 		"L'exigence est-elle documentée (politique/procédure écrite, approuvée et revue) ?",
 		"Est-elle appliquée et vérifiée dans les faits ?"),
 	impDecl("GV.OC-04.1", cyfun.Govern, "GV.OC", "GV.OC-04", false,
@@ -91,7 +91,7 @@ var ImportantControls = []DeclarativeControl{
 		"L'exigence est-elle documentée (politique/procédure écrite, approuvée et revue) ?",
 		"Est-elle appliquée et vérifiée dans les faits ?"),
 	// ID.AM-02.4 est désormais SCANNABLE (batch familles, réutilise une sonde).
-	impDecl("ID.AM-03-2", cyfun.Identify, "ID.AM", "ID.AM-03-2", false,
+	impDecl("ID.AM-03-2", cyfun.Identify, "ID.AM", "ID.AM-03", false, // sous-catégorie ID.AM-03 (l'ID d'exigence garde l'écriture du CCB)
 		"The organisation's network communication and internal data flows shall be mapped, documented, authorised, and updated when changes occur.",
 		"L'exigence est-elle documentée (politique/procédure écrite, approuvée et revue) ?",
 		"Est-elle appliquée et vérifiée dans les faits ?"),

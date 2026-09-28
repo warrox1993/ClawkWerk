@@ -51,7 +51,7 @@ const emailServerAttestation = "filtrage e-mail serveur à attester (preuve orga
 // PRPS0501WinCmd : sonde Windows LECTURE SEULE (JSON). Détecte un proxy web
 // via `reg query` downlevel (ProxyEnable=0x1 dans les Internet Settings de
 // l'utilisateur courant). Le filtrage DNS n'est pas sondé ici (false).
-const PRPS0501WinCmd = `$p=@(reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v ProxyEnable 2>$null | Select-String '0x1'); [pscustomobject]@{proxy_configured=($p.Count -gt 0); dns_filtering_hint=$false} | ConvertTo-Json`
+const PRPS0501WinCmd = WinPre + `$i='SOFTWARE\Microsoft\Windows\CurrentVersion\Internet Settings'; $w=(Get-ItemProperty "HKLM:\$i\Connections" -EA SilentlyContinue).WinHttpSettings; $wh=($w -ne $null -and $w.Length -ge 16 -and [BitConverter]::ToInt32($w,12) -gt 0); $pol=Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\Internet Settings' -EA SilentlyContinue; $hk=Get-ItemProperty "HKLM:\$i" -EA SilentlyContinue; $m=($pol.ProxySettingsPerUser -eq 0) -and (($hk.ProxyEnable -eq 1) -or [bool]$hk.AutoConfigURL); [pscustomobject]@{proxy_configured=($wh -or $m -or [bool]$pol.AutoConfigURL); dns_filtering_hint=$false}|ConvertTo-Json`
 
 // PRPS0501LinuxCmd : sonde Linux LECTURE SEULE (2 lignes yes/no) — proxy web
 // (variables d'environnement http(s)_proxy OU /etc/environment) ; l'indice DNS

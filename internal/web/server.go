@@ -270,7 +270,7 @@ const formTmpl = `<!DOCTYPE html>
 </head>
 <body>
 <h1>Questionnaire déclaratif{{if .Level}}, niveau {{.Level}}{{end}}</h1>
-<p>{{.Total}} questions. Auto-évaluation assistée : ne constitue pas une certification officielle CyFun.</p>
+<p>{{.Total}} questions. Auto-évaluation assistée : ne constitue ni une vérification ni une certification CyFun, ni une présomption de conformité NIS2 (délivrées par un organisme accrédité par BELAC et autorisé par le CCB).</p>
 <form method="post" action="/submit">
 <input type="hidden" name="csrf_token" value="{{.Token}}">
 {{range .Groups}}

@@ -26,18 +26,25 @@ type BootDeviceEvidence struct {
 	SecureBootEnabled   bool `json:"secure_boot_enabled"`  // UEFI Secure Boot actif (intégrité au démarrage)
 	RemovableRestricted bool `json:"removable_restricted"` // usage du stockage amovible restreint techniquement
 	AutorunDisabled     bool `json:"autorun_disabled"`     // exécution automatique des médias bloquée
+	// AutorunUnknown : aucun réglage système constatable (Linux : l'exécution
+	// automatique est un réglage de bureau par utilisateur). L'ancienne sonde
+	// émettait « yes » en dur et concluait « désactivée ».
+	AutorunUnknown bool `json:"autorun_unknown,omitempty"`
+	// SecureBootUnknown : état Secure Boot illisible (Linux sans mokutil,
+	// variable EFI illisible) ; jamais lu comme « désactivé ».
+	SecureBootUnknown bool `json:"secure_boot_unknown,omitempty"`
 }
 
 // BootDeviceWinCmd : collecte Windows LECTURE SEULE. Confirm-SecureBootUEFI pour l'état
 // Secure Boot ; NoDriveTypeAutoRun (0xff/0x95/0xb5 = autorun désactivé) ; USBSTOR Start
 // à 0x4 (pilote de stockage USB désactivé => média restreint). Émet du JSON canonique.
-const BootDeviceWinCmd = `$sb=$false; try{$sb=Confirm-SecureBootUEFI}catch{}; $ar=(reg query "HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v NoDriveTypeAutoRun 2>$null | Select-String '0xff|0x95|0xb5'); $rem=(reg query "HKLM\System\CurrentControlSet\Services\USBSTOR" /v Start 2>$null | Select-String '0x4'); [pscustomobject]@{secure_boot_enabled=[bool]$sb; removable_restricted=($rem -ne $null); autorun_disabled=($ar -ne $null)} | ConvertTo-Json`
+const BootDeviceWinCmd = WinPre + `try{$sb=[bool](Confirm-SecureBootUEFI -EA Stop)}catch{$sb=((Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Control\SecureBoot\State -EA SilentlyContinue).UEFISecureBootEnabled -eq 1)}; $ar=(reg query "HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v NoDriveTypeAutoRun 2>$null | Select-String '0xff|0x95|0xb5'); $rem=(reg query "HKLM\System\CurrentControlSet\Services\USBSTOR" /v Start 2>$null | Select-String '0x4'); [pscustomobject]@{secure_boot_enabled=$sb; removable_restricted=($rem -ne $null); autorun_disabled=($ar -ne $null)} | ConvertTo-Json`
 
 // BootDeviceLinuxCmd : collecte Linux LECTURE SEULE, émet 3 lignes yes/no : état Secure
 // Boot (mokutil), média restreint (montages usb en noexec/nodev), autorun désactivé.
 // Sous Linux il n'existe pas d'autorun interactif façon Windows => la 3e ligne est
 // toujours « yes ».
-const BootDeviceLinuxCmd = `mokutil --sb-state 2>/dev/null | grep -qi 'enabled' && echo yes || echo no; (grep -qsE 'usb.*(noexec|nodev)' /proc/mounts 2>/dev/null && echo yes || echo no); echo yes`
+const BootDeviceLinuxCmd = `if command -v mokutil >/dev/null 2>&1; then mokutil --sb-state 2>/dev/null | grep -qi 'enabled' && echo yes || echo no; elif [ -d /sys/firmware/efi ]; then V=$(od -An -tu1 -j4 -N1 /sys/firmware/efi/efivars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c 2>/dev/null | tr -d ' '); case "$V" in 1) echo yes;; 0) echo no;; *) echo unknown;; esac; else echo no; fi; (grep -qsE 'usb.*(noexec|nodev)' /proc/mounts 2>/dev/null && echo yes || echo no); (grep -rqs 'autorun-never=true' /etc/dconf/db 2>/dev/null && echo yes || echo unknown)`
 
 // --- Normalisation brut → BootDeviceEvidence ---
 
@@ -75,6 +82,8 @@ func BootDeviceLinuxNormalizer(raw []byte) (json.RawMessage, error) {
 		SecureBootEnabled:   yes(0),
 		RemovableRestricted: yes(1),
 		AutorunDisabled:     yes(2),
+		AutorunUnknown:      len(ls) < 3 || (ls[2] != "yes" && ls[2] != "no"),
+		SecureBootUnknown:   ls[0] != "yes" && ls[0] != "no",
 	})
 }
 
@@ -141,6 +150,9 @@ func (BootIntegrityEvaluator) Evaluate(raw assess.RawEvidence) assess.HostAssess
 	if errHA != nil {
 		return *errHA
 	}
+	if ev.SecureBootUnknown {
+		return errorAssessment(raw.Host, "Secure Boot : état illisible sur cet hôte — à attester au questionnaire.")
+	}
 	return evalBootControl(raw.Host, ev, ev.SecureBootEnabled,
 		cyfun.Defined, cyfun.Repeatable, assess.StatusPartial,
 		"Secure Boot activé : intégrité au démarrage constatée (contrôles d'intégrité organisationnels à attester).",
@@ -195,6 +207,9 @@ func (AutorunEvaluator) Evaluate(raw assess.RawEvidence) assess.HostAssessment {
 	ev, errHA := decodeBootDevice(raw)
 	if errHA != nil {
 		return *errHA
+	}
+	if ev.AutorunUnknown {
+		return errorAssessment(raw.Host, "Exécution automatique : aucun réglage système constatable sur cet hôte (réglage de bureau par utilisateur) — à attester au questionnaire.")
 	}
 	return evalBootControl(raw.Host, ev, ev.AutorunDisabled,
 		cyfun.Defined, cyfun.Repeatable, assess.StatusFail,

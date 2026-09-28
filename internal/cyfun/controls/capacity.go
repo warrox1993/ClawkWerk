@@ -34,7 +34,7 @@ const (
 
 // CapacityWinCmd : collecte Windows LECTURE SEULE. Interroge le premier disque
 // fixe (DriveType=3) et émet {disk_usage_percent} en JSON.
-const CapacityWinCmd = `$d=Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | Select-Object -First 1; $p=0; if($d -and $d.Size -gt 0){$p=[int](100-($d.FreeSpace/$d.Size*100))}; [pscustomobject]@{disk_usage_percent=$p} | ConvertTo-Json`
+const CapacityWinCmd = WinPre + `try{$d=New-Object IO.DriveInfo $env:SystemDrive; $p=[int](100-($d.AvailableFreeSpace/$d.TotalSize*100))}catch{F 'volume systeme' $_}; [pscustomobject]@{disk_usage_percent=$p}|ConvertTo-Json`
 
 // CapacityLinuxCmd : collecte Linux LECTURE SEULE. Émet 1 ligne = le % d'usage
 // du disque racine (colonne « Use% » de df, sans le signe %).

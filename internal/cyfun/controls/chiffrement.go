@@ -30,18 +30,24 @@ type EncryptionEvidence struct {
 	AtRestEnabled      bool `json:"at_rest_enabled"`     // volume système chiffré (BitLocker / dm-crypt)
 	InTransitEnforced  bool `json:"in_transit_enforced"` // signature/chiffrement des flux imposé (SMB)
 	RemovableEncrypted bool `json:"removable_encrypted"` // supports amovibles chiffrés
+	// InTransitUnknown : aucun service de partage à signer n'est présent (Linux
+	// sans Samba) ; l'absence de smb.conf n'est pas « des flux exposés ».
+	InTransitUnknown bool `json:"in_transit_unknown,omitempty"`
+	// RemovableUnknown : aucune obligation de chiffrement des supports
+	// amovibles n'est constatable (Linux) ; jamais lu comme « non chiffrés ».
+	RemovableUnknown bool `json:"removable_unknown,omitempty"`
 }
 
 // EncryptionWinCmd : collecte Windows LECTURE SEULE, émet du JSON
 // {at_rest_enabled, in_transit_enforced, removable_encrypted}. Lit l'état
 // BitLocker du volume système, l'exigence de signature du client SMB, et la
 // présence d'au moins un volume de données amovible protégé.
-const EncryptionWinCmd = `$os=(Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction SilentlyContinue).ProtectionStatus; $smb=(Get-SmbClientConfiguration -ErrorAction SilentlyContinue).RequireSecuritySignature; $rem=@(Get-BitLockerVolume -ErrorAction SilentlyContinue | Where-Object {$_.VolumeType -eq 'Data' -and $_.ProtectionStatus -eq 'On'}).Count; [pscustomobject]@{at_rest_enabled=($os -eq 'On'); in_transit_enforced=[bool]$smb; removable_encrypted=($rem -gt 0)} | ConvertTo-Json`
+const EncryptionWinCmd = WinPre + `$os=$null; $osd=$null; try{$v=Get-BitLockerVolume -MountPoint $env:SystemDrive -EA Stop; $os=("$($v.ProtectionStatus)" -eq 'On')}catch [Management.Automation.CommandNotFoundException]{$os=$null}catch{if("$($_.Exception.GetType().FullName) $($_.Exception.Message)" -match 'UnauthorizedAccess|0x80070005|denied|refus|autoris|verweigert|geweigerd'){$osd='BitLocker (Win32_EncryptableVolume, reserve aux administrateurs)'}else{F 'BitLocker' $_}}; try{$smb=[bool](Get-SmbClientConfiguration -EA Stop).RequireSecuritySignature}catch{try{$smb=((Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters -EA Stop).RequireSecuritySignature -eq 1)}catch{F 'signature SMB (LanmanWorkstation)' $_}}; $fve=Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Policies\Microsoft\FVE -EA SilentlyContinue; [pscustomobject]@{at_rest_enabled=$os; at_rest_denied=$osd; in_transit_enforced=$smb; removable_encrypted=($fve.RDVDenyWriteAccess -eq 1)}|ConvertTo-Json`
 
 // EncryptionLinuxCmd : collecte Linux LECTURE SEULE, émet 3 lignes yes/no :
 // chiffrement au repos (présence d'un device de type crypt), en transit
 // best-effort (signature Samba configurée), média amovible (best-effort : non).
-const EncryptionLinuxCmd = `lsblk -o TYPE 2>/dev/null | grep -q crypt && echo yes || echo no; (grep -qs -E 'server signing|client signing' /etc/samba/smb.conf 2>/dev/null && echo yes || echo no); echo no`
+const EncryptionLinuxCmd = `S=$(findmnt -no SOURCE / 2>/dev/null); if [ -n "$S" ]; then lsblk -sno TYPE "$S" 2>/dev/null | grep -q crypt && echo yes || echo no; else lsblk -o TYPE 2>/dev/null | grep -q crypt && echo yes || echo no; fi; (if [ -f /etc/samba/smb.conf ]; then grep -qsiE '^[[:space:]]*(server signing|client signing|smb encrypt)[[:space:]]*=[[:space:]]*(mandatory|required)' /etc/samba/smb.conf && echo yes || echo no; else echo unknown; fi); echo unknown`
 
 // decodeEncryption factorise le décodage commun aux évaluateurs de la famille :
 // gère la collecte échouée et la preuve illisible via errorAssessment (renvoyé
@@ -128,6 +134,9 @@ func (InTransitEncryptionEvaluator) Evaluate(raw assess.RawEvidence) assess.Host
 	if errHA != nil {
 		return *errHA
 	}
+	if ev.InTransitUnknown {
+		return errorAssessment(raw.Host, "Chiffrement en transit : aucun service de partage de fichiers (Samba) sur cet hôte, rien à constater côté hôte — à attester au questionnaire.")
+	}
 	return evalEncryptionFlag(raw.Host, ev.InTransitEnforced, "in_transit_enforced",
 		cyfun.Managed, cyfun.Initial, assess.StatusFail, cyfun.Managed,
 		"Signature/chiffrement des flux imposé : confidentialité en transit assurée.",
@@ -158,10 +167,13 @@ func (RemovableEncryptionEvaluator) Evaluate(raw assess.RawEvidence) assess.Host
 	if errHA != nil {
 		return *errHA
 	}
+	if ev.RemovableUnknown {
+		return errorAssessment(raw.Host, "Chiffrement des supports amovibles : aucune obligation technique constatable sur cet hôte — à attester au questionnaire.")
+	}
 	return evalEncryptionFlag(raw.Host, ev.RemovableEncrypted, "removable_encrypted",
 		cyfun.Defined, cyfun.Repeatable, assess.StatusPartial, cyfun.Defined,
-		"Supports amovibles chiffrés observés (device-control organisationnel à attester).",
-		"Aucun support amovible chiffré observé (device-control organisationnel à attester).")
+		"Chiffrement des supports amovibles imposé par stratégie (BitLocker To Go) ; device-control organisationnel à attester.",
+		"Aucune obligation technique de chiffrer les supports amovibles (device-control organisationnel à attester).")
 }
 
 // --- Normalisation brut → EncryptionEvidence ---
@@ -169,22 +181,58 @@ func (RemovableEncryptionEvaluator) Evaluate(raw assess.RawEvidence) assess.Host
 // EncryptionWindowsNormalizer parse le JSON émis côté Windows :
 // {"at_rest_enabled":bool,"in_transit_enforced":bool,"removable_encrypted":bool}.
 func EncryptionWindowsNormalizer(raw []byte) (json.RawMessage, error) {
-	var w struct {
-		AtRestEnabled      *bool `json:"at_rest_enabled"`
-		InTransitEnforced  *bool `json:"in_transit_enforced"`
-		RemovableEncrypted *bool `json:"removable_encrypted"`
+	ev, _, err := encryptionWindows(raw)
+	if err != nil {
+		return nil, err
 	}
+	return json.Marshal(ev)
+}
+
+// EncryptionWindowsNormalizerFor spécialise le normaliseur par contrôle : l'état
+// BitLocker est réservé aux administrateurs, mais la signature SMB et la
+// stratégie BitLocker To Go se lisent sans droits. Seul PR.DS-01.6 (au repos)
+// dépend de BitLocker : les deux autres contrôles restent évalués.
+func EncryptionWindowsNormalizerFor(axis string) assess.NormalizeFunc {
+	return func(raw []byte) (json.RawMessage, error) {
+		ev, w, err := encryptionWindows(raw)
+		if err != nil {
+			return nil, err
+		}
+		if axis == "at_rest" {
+			if w.AtRestDenied != nil && *w.AtRestDenied != "" {
+				return nil, fmt.Errorf("droits insuffisants : lecture refusée (%s)", *w.AtRestDenied)
+			}
+			if w.AtRestEnabled == nil {
+				return nil, errors.New("état BitLocker indisponible (module absent ou chiffrement tiers) : chiffrement au repos à attester")
+			}
+		}
+		if axis == "in_transit" && w.InTransitEnforced == nil {
+			return nil, errors.New("champ in_transit_enforced absent")
+		}
+		return json.Marshal(ev)
+	}
+}
+
+type encryptionWinRaw struct {
+	AtRestEnabled      *bool   `json:"at_rest_enabled"`
+	AtRestDenied       *string `json:"at_rest_denied"`
+	InTransitEnforced  *bool   `json:"in_transit_enforced"`
+	RemovableEncrypted *bool   `json:"removable_encrypted"`
+}
+
+func encryptionWindows(raw []byte) (EncryptionEvidence, encryptionWinRaw, error) {
+	var w encryptionWinRaw
 	if err := json.Unmarshal(raw, &w); err != nil {
-		return nil, fmt.Errorf("sortie chiffrement illisible : %w", err)
+		return EncryptionEvidence{}, w, fmt.Errorf("sortie chiffrement illisible : %w", err)
 	}
-	if w.AtRestEnabled == nil {
-		return nil, errors.New("champ at_rest_enabled absent")
+	if w.AtRestEnabled == nil && w.AtRestDenied == nil && w.InTransitEnforced == nil {
+		return EncryptionEvidence{}, w, errors.New("champs de chiffrement absents")
 	}
-	return json.Marshal(EncryptionEvidence{
+	return EncryptionEvidence{
 		AtRestEnabled:      derefBool(w.AtRestEnabled),
 		InTransitEnforced:  derefBool(w.InTransitEnforced),
 		RemovableEncrypted: derefBool(w.RemovableEncrypted),
-	})
+	}, w, nil
 }
 
 // EncryptionLinuxNormalizer parse 3 lignes yes/no : chiffrement au repos,
@@ -199,5 +247,7 @@ func EncryptionLinuxNormalizer(raw []byte) (json.RawMessage, error) {
 		AtRestEnabled:      yes(0),
 		InTransitEnforced:  yes(1),
 		RemovableEncrypted: yes(2),
+		InTransitUnknown:   len(ls) < 2 || (ls[1] != "yes" && ls[1] != "no"),
+		RemovableUnknown:   len(ls) < 3 || (ls[2] != "yes" && ls[2] != "no"),
 	})
 }

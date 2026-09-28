@@ -4,14 +4,20 @@
 
 Outil d'auto-évaluation de la cybersécurité d'une PME belge selon le référentiel
 CyberFundamentals (CyFun) 2025 du Centre pour la Cybersécurité Belgique (CCB),
-le cadre de référence belge pour la mise en conformité NIS2. Écrit en Go, il
-collecte des preuves techniques en lecture seule, sans agent à installer, les
-combine avec un questionnaire organisationnel et calcule le verdict de
-conformité selon le barème officiel.
+le référentiel que le CCB recommande pour mettre en œuvre les mesures de la loi
+NIS2 belge. Écrit en Go, il collecte des preuves techniques en lecture seule,
+sans agent à installer, les combine avec un questionnaire organisationnel et
+calcule le verdict selon le barème des outils d'auto-évaluation du CCB.
 
-ClawkWerk prépare une organisation à l'évaluation ; il ne délivre aucune
-certification. La certification CyFun est réservée aux organismes d'évaluation
-de la conformité accrédités par BELAC, et chaque rapport produit le rappelle.
+Code source disponible, usage non commercial (voir [Licence](#licence)).
+
+ClawkWerk prépare une organisation à l'évaluation ; il ne délivre ni
+vérification (niveaux Basic et Important) ni certification (niveau Essential)
+CyFun, ni présomption de conformité NIS2. En Belgique, celles-ci viennent d'un
+organisme d'évaluation de la conformité (CAB) accrédité par BELAC et autorisé
+par le CCB, d'une certification ISO/IEC 27001 acceptée par le CCB, ou d'une
+inspection du CCB ([source : CCB](https://atwork.safeonweb.be/nis2)). Chaque
+rapport produit le rappelle.
 
 ![Rapport HTML de démonstration](docs/captures/rapport-html.png)
 
@@ -26,8 +32,10 @@ de la conformité accrédités par BELAC, et chaque rapport produit le rappelle.
 - Les trois niveaux sont chargés avec le texte exact des exigences, les Key
   Measures et les seuils du CCB (Basic : 2,5 par Key Measure et en moyenne ;
   Important : 3 ; Essential : 3 par Key Measure et par catégorie, 3,5 en
-  moyenne). Le calcul reproduit l'agrégation de l'outil Excel officiel, y
-  compris le traitement des exigences non applicables.
+  moyenne). Le calcul suit la méthode des outils d'auto-évaluation du CCB
+  (moyenne par sous-catégorie, puis par catégorie, N/A remplacé par le
+  seuil) ; il a été comparé aux trois classeurs officiels, voir
+  [Validation en conditions réelles](#validation-en-conditions-réelles).
 - Chaque exigence reçoit deux notes de 1 à 5, documentation et
   implémentation. Pour les exigences scannables, l'implémentation vient de la
   collecte technique ; le reste vient du questionnaire.
@@ -38,7 +46,8 @@ de la conformité accrédités par BELAC, et chaque rapport produit le rappelle.
   IOS, PAN-OS, SonicOS, WatchGuard Fireware, Zyxel, Sophos XG, UniFi) pour le
   pare-feu, la segmentation et la journalisation, plus Microsoft 365 via
   l'API Graph en lecture.
-- Transports : fichiers déjà rapatriés, SSH, WinRM et API.
+- Transports : fichiers déjà rapatriés, SSH, WinRM (HTTPS, NTLM ou Basic,
+  certificat vérifié par l'autorité du client) et API.
 - Rapports JSON, HTML, XLSX et PDF : synthèse, méthodologie, couverture réelle
   de la collecte, résultats par fonction NIST CSF 2.0, plan de remédiation,
   annexes technique et légale.
@@ -148,14 +157,28 @@ orchestrator -scope scope.json -transport remote \
 `creds.json` associe chaque `cred_ref` à un identifiant et à un secret (mot de
 passe ou clé privée SSH) ; il n'est jamais recopié dans les rapports.
 
+WinRM : HTTPS avec vérification du certificat de l'hôte par l'autorité du
+client (`-winrm-ca autorite.pem`), authentification NTLM par défaut (comptes
+locaux et de domaine ; `-winrm-auth basic` si le client a activé Basic).
+Droits minimaux constatés sur Windows 11 : compte non administrateur membre de
+« Utilisateurs de gestion à distance » et « Lecteurs des journaux
+d'événements », ce groupe étant autorisé dans le descripteur racine de WinRM
+(détail dans [la validation](docs/methode/validation-reelle-2026-09-28.md)).
+Avec ce compte, 59 des 64 collectes Windows aboutissent ; l'état BitLocker,
+Device Guard et `w32tm` exigent un administrateur local, et `-preflight` les
+signale comme « droits insuffisants » plutôt que d'en tirer une conclusion.
+
 ![Questionnaire web local](docs/captures/questionnaire.png)
 
 ## Tests
 
-- 371 tests et 282 sous-tests, tous verts, avec et sans `-tags history`, et
+- 411 tests et 282 sous-tests, tous verts, avec et sans `-tags history`, et
   sous le détecteur de courses (`-race`).
 - Tests de propriété sur le calcul de maturité, verdicts de référence,
   fuzzing des normaliseurs (aucune panique sur entrée arbitraire).
+- Sondes Windows : longueur de ligne de commande et absence de verbe
+  d'écriture vérifiées pour les 64 sondes ; sorties réelles d'un Windows 11
+  rejouées dans les tests.
 - Sondes Linux exécutées dans un vrai shell POSIX avec de faux outils système,
   et un test qui vérifie que toutes les sondes Linux sortent proprement sur
   une machine minimale.
@@ -170,21 +193,43 @@ make build    # binaires statiques dans bin/
 La même chaîne tourne en CI à chaque push et pull request, avec un contrôle du
 caractère statique et reproductible des binaires.
 
+## Validation en conditions réelles
+
+Détail et preuves : [docs/methode/validation-reelle-2026-09-28.md](docs/methode/validation-reelle-2026-09-28.md).
+
+- Windows 11 Pro 25H2 (fr-BE), par WinRM HTTPS avec un compte non
+  administrateur : les 64 sondes s'exécutent, 59 aboutissent et 5 sont
+  signalées « droits insuffisants » ; 64/64 avec un administrateur local.
+  Constats recoupés avec l'état réel de la machine.
+- Ubuntu 26.04 : par SSH avec un compte non root, puis chaque sonde rejouée
+  avec le compte `nobody` (aucun groupe) : constats recoupés un à un ; seul le
+  journal système reste illisible sans groupe, signalé « droits
+  insuffisants ».
+- Une revue de code indépendante a relevé les sondes qui concluaient encore
+  sur une valeur non mesurée ; toutes ont été corrigées et revalidées sur les
+  deux machines.
+- Calcul : mêmes notes saisies dans ClawkWerk et dans les trois outils
+  d'auto-évaluation du CCB (recalcul LibreOffice), quatre jeux par niveau.
+  Identité exacte avec la méthode publiée par le CCB ; verdict identique aux
+  classeurs tels que publiés, dont les seuls écarts de score viennent
+  d'anomalies de formules recensées (niveaux Important et Essential).
+- Couverture : 34, 133 et 218 exigences, sans oubli ni doublon ; Key
+  Measures, niveaux et sous-catégories identiques aux outils officiels.
+
 ## Limites assumées
 
 - Les adaptateurs des dix familles d'équipements réseau ont été écrits
   d'après la documentation des constructeurs et n'ont pas été validés sur du
   matériel réel ; `-coverage` affiche ce statut pour chacun.
-- Le transport WinRM et les sondes PowerShell n'ont pas été exécutés contre
-  une vraie machine Windows : ils sont testés sur des sorties d'exemple. Les
-  sondes Linux et le transport SSH ont, eux, été validés de bout en bout sur
-  des conteneurs Debian jetables.
-- Les libellés français, néerlandais et allemands de `net accounts` restent à
-  confirmer sur des Windows localisés.
-- 18 des 34 exigences Basic sont organisationnelles : leur note vient du
-  questionnaire, c'est-à-dire d'une déclaration.
+- Windows validé sur un seul poste (Windows 11 25H2 fr-BE, hors domaine) :
+  ni Windows Server, ni versions néerlandaise ou allemande, ni compte de
+  domaine. Microsoft 365 (API Graph) jamais exécuté contre un vrai tenant.
+- Linux validé sur Ubuntu 26.04 et Debian ; dnf, zypper, pacman et apk ne
+  sont testés que sur des sorties simulées.
+- 18 des 34 exigences Basic (152 des 218 au niveau Essential) sont
+  organisationnelles : leur note vient du questionnaire, c'est-à-dire d'une
+  déclaration.
 - La recette de clé USB live (`live/`) n'a jamais été démarrée.
-- Aucune licence n'est encore attachée au dépôt.
 
 ## Méthode
 
@@ -198,6 +243,17 @@ atteignable, une course de données ou un fichier mal formaté fait échouer la
 CI. Les documents de conception et le protocole
 de validation terrain sont dans [`docs/methode`](docs/methode), l'historique
 dans [`CHANGELOG.md`](CHANGELOG.md).
+
+## Licence
+
+Le code de ClawkWerk est publié sous la licence
+[PolyForm Noncommercial 1.0.0](LICENSE) : code source disponible, usage non
+commercial (usage personnel, recherche, enseignement, organismes non
+commerciaux). Ce n'est pas une licence open source au sens de l'OSI. Tout
+usage commercial demande l'accord de l'auteur.
+
+Les textes du référentiel CyFun repris dans l'outil restent la propriété du
+CCB et ne sont pas couverts par cette licence : voir [NOTICE](NOTICE).
 
 ## Source du référentiel
 

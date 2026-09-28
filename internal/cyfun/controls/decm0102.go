@@ -20,6 +20,12 @@ type AntivirusEvidence struct {
 	RealtimeProtection bool   `json:"realtime_protection"`
 	Product            string `json:"product"`
 	DefinitionsAgeDays int    `json:"definitions_age_days"`
+	// DefinitionsAgeUnknown : l'âge des définitions n'a pas pu être lu (produit
+	// tiers repéré par son service). Jamais converti en « 0 jour ».
+	DefinitionsAgeUnknown bool `json:"definitions_age_unknown,omitempty"`
+	// RealtimeUnknown : l'état de la protection en temps réel n'est pas lisible
+	// (produit tiers repéré par son service). Jamais lu comme « désactivée ».
+	RealtimeUnknown bool `json:"realtime_unknown,omitempty"`
 }
 
 // DECM0102Meta : métadonnées officielles du contrôle (texte exact du CCB).
@@ -54,9 +60,10 @@ const (
 // defenderRaw = forme JSON produite par `Get-MpComputerStatus | Select ... |
 // ConvertTo-Json` (noms de champs natifs Defender).
 type defenderRaw struct {
-	AntivirusEnabled          *bool `json:"AntivirusEnabled"`
-	RealTimeProtectionEnabled *bool `json:"RealTimeProtectionEnabled"`
-	AntivirusSignatureAge     *int  `json:"AntivirusSignatureAge"`
+	AntivirusEnabled          *bool   `json:"AntivirusEnabled"`
+	RealTimeProtectionEnabled *bool   `json:"RealTimeProtectionEnabled"`
+	AntivirusSignatureAge     *int    `json:"AntivirusSignatureAge"`
+	Product                   *string `json:"Product"` // absent : Defender (Get-MpComputerStatus)
 }
 
 // AntivirusWindowsNormalizer mappe la sortie Defender vers AntivirusEvidence.
@@ -68,12 +75,18 @@ func AntivirusWindowsNormalizer(raw []byte) (json.RawMessage, error) {
 	if d.AntivirusEnabled == nil {
 		return nil, errors.New("champ AntivirusEnabled absent")
 	}
+	product := "Microsoft Defender"
+	if d.Product != nil && strings.TrimSpace(*d.Product) != "" {
+		product = strings.TrimSpace(*d.Product)
+	}
 	return json.Marshal(AntivirusEvidence{
-		Present:            true, // Get-MpComputerStatus a répondu => Defender présent
-		Enabled:            derefBool(d.AntivirusEnabled),
-		RealtimeProtection: derefBool(d.RealTimeProtectionEnabled),
-		Product:            "Microsoft Defender",
-		DefinitionsAgeDays: derefInt(d.AntivirusSignatureAge),
+		Present:               true, // la sonde a lu l'état d'un anti-malware
+		Enabled:               derefBool(d.AntivirusEnabled),
+		RealtimeProtection:    derefBool(d.RealTimeProtectionEnabled),
+		Product:               product,
+		DefinitionsAgeDays:    derefInt(d.AntivirusSignatureAge),
+		DefinitionsAgeUnknown: d.AntivirusSignatureAge == nil,
+		RealtimeUnknown:       d.RealTimeProtectionEnabled == nil && derefBool(d.AntivirusEnabled),
 	})
 }
 
@@ -202,9 +215,15 @@ func evaluateAntivirus(host assess.HostRef, ev AntivirusEvidence) assess.HostAss
 	case ev.DefinitionsAgeDays > defsStaleDays:
 		lvl, f.Status = cyfun.Repeatable, assess.StatusPartial
 		f.Message = fmt.Sprintf("Définitions périmées (%d j > %d j).", ev.DefinitionsAgeDays, defsStaleDays)
+	case ev.RealtimeUnknown:
+		lvl, f.Status = cyfun.Defined, assess.StatusPass
+		f.Message = fmt.Sprintf("Anti-malware %q en fonctionnement ; protection en temps réel et âge des définitions non lisibles à distance (à attester).", ev.Product)
 	case !ev.RealtimeProtection:
 		lvl, f.Status = cyfun.Repeatable, assess.StatusPartial
 		f.Message = "Protection en temps réel désactivée."
+	case ev.DefinitionsAgeUnknown:
+		lvl, f.Status = cyfun.Defined, assess.StatusPass
+		f.Message = fmt.Sprintf("Anti-malware %q actif ; âge des définitions non lisible à distance (à attester).", ev.Product)
 	case ev.DefinitionsAgeDays > defsFreshDays:
 		lvl, f.Status = cyfun.Defined, assess.StatusPass
 		f.Message = fmt.Sprintf("Antivirus actif ; définitions à %d j (≤ %d j).", ev.DefinitionsAgeDays, defsStaleDays)

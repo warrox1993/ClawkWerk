@@ -20,7 +20,13 @@ const schemaVersion = "1.0"
 
 // Disclaimer légal obligatoire, présent dans toute sortie (cf. positionnement
 // « préparateur à la conformité », pas organisme de certification).
-const Disclaimer = "Auto-évaluation assistée — ne constitue pas une certification officielle CyFun (réservée aux CAB accrédités BELAC)."
+const Disclaimer = "Auto-évaluation assistée — ne constitue ni une vérification (niveaux Basic et Important) ni une certification (niveau Essential) CyFun, ni une présomption de conformité NIS2 : celles-ci sont délivrées par un organisme d’évaluation de la conformité (CAB) accrédité par BELAC et autorisé par le CCB."
+
+// NIS2Note situe l'auto-évaluation dans le dispositif belge NIS2 (annexe
+// légale des rapports). Source : CCB, https://atwork.safeonweb.be/nis2
+// (page consultée le 28/09/2026) ; seuls la loi du 26 avril 2024 et l'arrêté
+// royal du 9 juin 2024 publiés au Moniteur belge font foi.
+const NIS2Note = "Cadre NIS2 (Belgique) : loi du 26 avril 2024 et arrêté royal du 9 juin 2024. Le CCB recommande le référentiel CyberFundamentals (CyFun) pour mettre en œuvre les mesures de gestion des risques ; une entité essentielle bénéficie d'une présomption de conformité après une vérification ou certification CyFun, ou une certification ISO/IEC 27001, délivrée par un CAB accrédité et autorisé par le CCB, ou fait l'objet d'une inspection du CCB. Une auto-évaluation comme celle-ci sert à préparer ces démarches ; elle n'en tient pas lieu. Source : CCB, atwork.safeonweb.be/nis2."
 
 // Framework identifie le référentiel et le niveau audités.
 type Framework struct {
@@ -47,10 +53,24 @@ type ConformitySummary struct {
 	// « AUDIT INCOMPLET — N contrôles à évaluer ». Les contrôles concernés ne sont
 	// PAS notés 0 (ce serait une fausse faille) : ils sont exclus de la moyenne et
 	// listés ici comme à compléter.
+	// Categories = « Category Maturity Overview » de l'onglet Summary de l'outil
+	// officiel : pour chaque catégorie, maturités Documentation et
+	// Implementation (moyennes des sous-catégories) et leur moyenne.
+	Categories []CategoryScore `json:"categories,omitempty"`
+
 	Incomplete         bool     `json:"incomplete"`
 	UnassessedControls []string `json:"unassessed_controls,omitempty"`
 
 	Conform bool `json:"conform"`
+}
+
+// CategoryScore = une ligne du « Category Maturity Overview » officiel.
+type CategoryScore struct {
+	Category       string              `json:"category"`
+	Function       string              `json:"function"`
+	Documentation  cyfun.MaturityScore `json:"documentation_maturity"`
+	Implementation cyfun.MaturityScore `json:"implementation_maturity"`
+	Maturity       cyfun.MaturityScore `json:"maturity"`
 }
 
 // ComputeConformity applique les règles officielles du NIVEAU demandé : conforme
@@ -99,8 +119,9 @@ func ComputeConformity(results []assess.ControlResult, level string) ConformityS
 	// CONTRÔLES ÉVALUÉS. Un contrôle N/A prend la valeur du seuil KM (naValue),
 	// comme la substitution du xlsx. Quand l'audit est COMPLET, assessed == results
 	// et l'agrégation est rigoureusement identique (parité CCB préservée).
-	totalMat, catMat := aggregate(assessed, km)
+	totalMat, catMat, catAxes := aggregateAxes(assessed, km)
 	s.TotalMaturity = totalMat
+	s.Categories = catAxes
 
 	// Seuil par CATÉGORIE (Essential : cat > 0), sur la Category Maturity Score.
 	if cat > 0 {
@@ -123,7 +144,7 @@ func ComputeConformity(results []assess.ControlResult, level string) ConformityS
 	return s
 }
 
-// aggregate reproduit EXACTEMENT le calcul de maturité du barème officiel CCB
+// aggregateAxes reproduit EXACTEMENT le calcul de maturité du barème officiel CCB
 // (formules Excel des feuilles de fonction + onglet Summary) :
 //
 //	requirement --moyenne--> sous-catégorie --moyenne--> catégorie --moyenne--> total
@@ -137,7 +158,9 @@ func ComputeConformity(results []assess.ControlResult, level string) ConformityS
 // Chaque étage pèse également (moyenne de moyennes), donc une catégorie riche en
 // contrôles ne pèse pas plus qu'une autre — d'où l'écart avec une moyenne à plat.
 // Renvoie la maturité totale et la Category Maturity Score par catégorie.
-func aggregate(results []assess.ControlResult, naValue cyfun.MaturityScore) (total cyfun.MaturityScore, catMaturity map[string]cyfun.MaturityScore) {
+// Il renvoie aussi, par catégorie (dans l'ordre des fonctions), les
+// maturités Documentation et Implementation, comme l'onglet Summary.
+func aggregateAxes(results []assess.ControlResult, naValue cyfun.MaturityScore) (total cyfun.MaturityScore, catMaturity map[string]cyfun.MaturityScore, cats []CategoryScore) {
 	type acc struct {
 		doc, impl cyfun.MaturityScore
 		n         int
@@ -168,6 +191,10 @@ func aggregate(results []assess.ControlResult, naValue cyfun.MaturityScore) (tot
 	}
 	// Étage 2 : catégorie = moyenne des sous-catégories.
 	cat := map[string]*acc{}
+	catFunc := map[string]string{}
+	for _, r := range results {
+		catFunc[r.Meta.Category] = string(r.Meta.Function)
+	}
 	for subID, a := range sub {
 		c := cat[subCat[subID]]
 		if c == nil {
@@ -187,12 +214,23 @@ func aggregate(results []assess.ControlResult, naValue cyfun.MaturityScore) (tot
 		m := (catDoc + catImpl) / 2
 		catMaturity[id] = m
 		totSum += m
+		cats = append(cats, CategoryScore{Category: id, Function: catFunc[id], Documentation: catDoc, Implementation: catImpl, Maturity: m})
 	}
+	sort.Slice(cats, func(i, j int) bool {
+		fi, fj := functionRank[cats[i].Function], functionRank[cats[j].Function]
+		if fi != fj {
+			return fi < fj
+		}
+		return cats[i].Category < cats[j].Category
+	})
 	if len(cat) > 0 {
 		total = totSum / cyfun.MaturityScore(len(cat))
 	}
-	return total, catMaturity
+	return total, catMaturity, cats
 }
+
+// functionRank ordonne les fonctions comme le référentiel (GV, ID, PR, DE, RS, RC).
+var functionRank = map[string]int{"GOVERN": 1, "IDENTIFY": 2, "PROTECT": 3, "DETECT": 4, "RESPOND": 5, "RECOVER": 6}
 
 // AuditSession = enveloppe complète d'une session d'audit.
 type AuditSession struct {

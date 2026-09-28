@@ -37,7 +37,7 @@ type FimEvidence struct {
 // agent d'intégrité connu à l'état Running, émet du JSON {fim_present,
 // auto_response}. auto_response reste false : la réponse automatisée n'est pas
 // prouvable de façon fiable depuis un simple relevé de services.
-const FimWinCmd = `$fim=@(Get-Service 2>$null | Where-Object {$_.Name -match 'Tripwire|OSSEC|Wazuh|Sysmon|AIDE|Qualys|Tanium'} | Where-Object {$_.Status -eq 'Running'}); [pscustomobject]@{fim_present=($fim.Count -gt 0); auto_response=$false} | ConvertTo-Json`
+const FimWinCmd = WinPre + `$re='Tripwire|OSSEC|Wazuh|Sysmon|AIDE|Qualys|Tanium'; ` + WinAutoServices + `[pscustomobject]@{fim_present=($S.Count -gt 0); auto_response=$false}|ConvertTo-Json`
 
 // FimLinuxCmd : collecte Linux LECTURE SEULE, émet 2 lignes yes/no : présence
 // d'un outil FIM (binaire installé ou agent actif), puis réponse automatisée

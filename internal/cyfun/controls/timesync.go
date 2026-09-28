@@ -27,13 +27,17 @@ type TimeSyncEvidence struct {
 	Source       string `json:"source,omitempty"` // source de temps observée (serveur NTP, référence chrony…)
 }
 
-// TimeSyncWinCmd : collecte Windows LECTURE SEULE via w32tm. Émet du JSON
-// {synchronized, source}. Synchronized est vrai si `w32tm /query /status` répond
-// (code 0) et expose une Source ou un Stratum ; source vient de `/query /source`.
-// Émet seulement la SOURCE (w32tm /query /source). La synchronisation en est
-// déduite en Go de façon NEUTRE (source externe = nom/IP pointé) au lieu de parser
-// le statut w32tm dont les libellés (« Source », « Stratum »…) sont traduits.
-const TimeSyncWinCmd = `$src=(w32tm /query /source 2>$null) -join ''; [pscustomobject]@{source=$src} | ConvertTo-Json`
+// TimeSyncWinCmd : collecte Windows LECTURE SEULE via `w32tm /query /source`.
+// La synchronisation en est déduite en Go de façon NEUTRE (source externe =
+// nom/IP pointé) au lieu de parser le statut w32tm dont les libellés sont
+// traduits. Sans droits d'administration, w32tm répond « Accès refusé
+// (0x80070005) » : la sonde le signale (droits insuffisants) au lieu d'émettre
+// ce message comme « source » — l'ancienne version le prenait pour une source
+// externe (il contient un point) et concluait « synchronisée ». Le journal
+// System (événements 35/37) n'est pas un substitut fiable : constaté le
+// 28/09/2026, des données valides reçues (37) coexistaient avec une horloge
+// jamais synchronisée selon w32tm.
+const TimeSyncWinCmd = WinPre + `$s=(w32tm /query /source 2>&1) -join ''; $c=$LASTEXITCODE; if($s -match '0x80070005|denied|refus|verweigert|geweigerd'){'ACCESS DENIED: w32tm (etat de synchronisation lisible par un administrateur seulement)'; exit 0}; if($s -match '0x80070426'){$s='service W32Time arrete'}elseif($c -ne 0){[Console]::Error.WriteLine("PROBE ERROR: w32tm : $s"); exit 1}; [pscustomobject]@{source=$s.Trim()}|ConvertTo-Json`
 
 // TimeSyncLinuxCmd : collecte Linux LECTURE SEULE, émet 2 lignes : « yes »/« no »
 // selon l'état de synchronisation (timedatectl, avec repli chronyc), puis la
@@ -118,8 +122,12 @@ func TimeSyncWindowsNormalizer(raw []byte) (json.RawMessage, error) {
 	// time.windows.com, 10.0.0.1) et non une horloge locale (« Local CMOS Clock »/
 	// « Horloge CMOS locale »/… — traduit, mais sans point). Heuristique NEUTRE.
 	src := strings.TrimSpace(*w.Source)
+	if src == "" || strings.Contains(src, "0x8007") {
+		return nil, fmt.Errorf("source de temps illisible : %q", src)
+	}
 	return json.Marshal(TimeSyncEvidence{
-		Synchronized: strings.Contains(src, "."),
+		// « VM IC Time Synchronization Provider » : invité Hyper-V synchronisé par son hôte.
+		Synchronized: strings.Contains(src, ".") || strings.Contains(src, "VM IC Time Synchronization Provider"),
 		Source:       src,
 	})
 }

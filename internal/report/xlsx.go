@@ -91,7 +91,10 @@ func sheetXML(v View) string {
 
 	c := v.Session.Conformity
 	verdict := "NON CONFORME"
-	if c.Conform {
+	switch {
+	case c.Incomplete:
+		verdict = fmt.Sprintf("AUDIT INCOMPLET (%d contrôle(s) à évaluer)", len(c.UnassessedControls))
+	case c.Conform:
 		verdict = "CONFORME"
 	}
 	addRow(txt("Rapport CyFun " + v.Session.Framework.Level + " — " + v.Session.Scope.ClientRef))
@@ -113,6 +116,16 @@ func sheetXML(v View) string {
 			}
 			addRow(txt(cv.Meta.ID), txt(string(cv.Meta.Function)), txt(cv.Meta.Category), txt(km),
 				numl(cv.Doc), numl(cv.Impl), numf(float64(cv.Maturity)), txt(conf))
+		}
+	}
+
+	if len(c.Categories) > 0 {
+		addRow()
+		addRow(txt("Maturité par catégorie (calcul de l'onglet Summary de l'outil CCB)"))
+		addRow(txt("Fonction"), txt("Catégorie"), txt("Documentation"), txt("Implementation"), txt("Maturité"))
+		for _, cs := range c.Categories {
+			addRow(txt(cs.Function), txt(cs.Category), numf(float64(cs.Documentation)),
+				numf(float64(cs.Implementation)), numf(float64(cs.Maturity)))
 		}
 	}
 

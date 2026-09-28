@@ -24,6 +24,11 @@ import (
 type AccessReviewEvidence struct {
 	InactiveAccounts   int `json:"inactive_accounts"`    // comptes activés jamais connectés / dormants
 	TotalLocalAccounts int `json:"total_local_accounts"` // comptes locaux énumérés
+	// InactiveUnknown : la dernière connexion n'est pas mesurable sur l'hôte
+	// (Linux sans lastlog/lastlog2, cas d'Ubuntu 26.04 constaté le 28/09/2026).
+	// L'ancienne sonde comptait alors « 0 dormant » et concluait « aucun compte
+	// dormant ».
+	InactiveUnknown bool `json:"inactive_unknown,omitempty"`
 }
 
 // PRAA0501Meta : texte officiel du CCB. Key Measure.
@@ -76,6 +81,9 @@ func evaluateAccessReview(host assess.HostRef, ev AccessReviewEvidence) assess.H
 	case ev.TotalLocalAccounts <= 0:
 		lvl, f.Status = cyfun.Initial, assess.StatusFail
 		f.Message = "Énumération des comptes impossible ; revue des accès non vérifiable."
+	case ev.InactiveUnknown:
+		lvl, f.Status = cyfun.Repeatable, assess.StatusPartial
+		f.Message = fmt.Sprintf("%d comptes énumérés ; dernière connexion non mesurable sur cet hôte, dormance non vérifiée ; revue périodique formelle à attester.", ev.TotalLocalAccounts)
 	case ev.InactiveAccounts > inactiveAccountsManyThreshold:
 		lvl, f.Status = cyfun.Repeatable, assess.StatusPartial
 		f.Message = fmt.Sprintf("%d comptes inactifs/dormants — revue des accès insuffisante ; revue périodique formelle à attester (preuve organisationnelle).", ev.InactiveAccounts)
@@ -97,11 +105,11 @@ func evaluateAccessReview(host assess.HostRef, ev AccessReviewEvidence) assess.H
 // PRAA0501WinCmd : collecte Windows LECTURE SEULE, émet du JSON. Get-LocalUser,
 // avec repli WMI Win32_UserAccount pour compatibilité Windows 7. Compte les
 // comptes activés n'ayant jamais eu de LastLogon (dormants).
-const PRAA0501WinCmd = `$all=@(Get-LocalUser -ErrorAction SilentlyContinue); if(-not $all){ $all=@(Get-WmiObject Win32_UserAccount -Filter "LocalAccount=True" -ErrorAction SilentlyContinue) }; $inactive=@($all | Where-Object {$_.Enabled -and -not $_.LastLogon}).Count; [pscustomobject]@{inactive_accounts=$inactive; total_local_accounts=$all.Count} | ConvertTo-Json`
+const PRAA0501WinCmd = WinPre + `$inactive=$null; try{$all=@(Get-LocalUser -EA Stop); $inactive=@($all|?{$_.Enabled -and -not $_.LastLogon -and "$($_.PrincipalSource)" -notmatch 'MicrosoftAccount|AzureAD'}).Count}catch{try{$all=@(Get-WmiObject Win32_UserAccount -Filter "LocalAccount=True" -EA Stop)}catch{F 'comptes locaux' $_}}; [pscustomobject]@{inactive_accounts=$inactive; total_local_accounts=$all.Count}|ConvertTo-Json`
 
 // PRAA0501LinuxCmd : collecte Linux LECTURE SEULE, émet 2 lignes : nombre de
 // comptes humains (UID 1000..65533), puis nombre de comptes jamais connectés.
-const PRAA0501LinuxCmd = `getent passwd 2>/dev/null | awk -F: '$3>=1000 && $3<65534 {c++} END{print c+0}'; lastlog 2>/dev/null | awk 'NR>1 && /Never logged in/ {c++} END{print c+0}'`
+const PRAA0501LinuxCmd = `export LC_ALL=C; U=$(getent passwd 2>/dev/null | awk -F: '$3>=1000 && $3<65534 && $7 !~ /(nologin|false)$/ {print $1}'); printf '%s\n' "$U" | grep -c . ; if command -v lastlog2 >/dev/null 2>&1; then L=$(lastlog2 2>/dev/null) || L=; elif command -v lastlog >/dev/null 2>&1; then L=$(lastlog 2>/dev/null) || L=; else L=; fi; if [ -z "$L" ]; then echo unknown; else printf '%s\n' "$L" | awk -v u="$U" 'BEGIN{n=split(u,a,"\n"); for(i=1;i<=n;i++) h[a[i]]=1} NR>1 && ($1 in h) && /Never logged in/ {c++} END{print c+0}'; fi`
 
 // --- Normalisation brut → AccessReviewEvidence ---
 
@@ -121,6 +129,9 @@ func AccessReviewWindowsNormalizer(raw []byte) (json.RawMessage, error) {
 	return json.Marshal(AccessReviewEvidence{
 		InactiveAccounts:   derefInt(w.InactiveAccounts),
 		TotalLocalAccounts: derefInt(w.TotalLocalAccounts),
+		// Repli WMI (Windows 7) : Win32_UserAccount n'expose pas la dernière
+		// connexion ; la dormance n'est alors pas mesurée.
+		InactiveUnknown: w.InactiveAccounts == nil,
 	})
 }
 
@@ -135,10 +146,11 @@ func AccessReviewLinuxNormalizer(raw []byte) (json.RawMessage, error) {
 	if !ok {
 		return nil, fmt.Errorf("nombre de comptes illisible : %q", ls[0])
 	}
-	ev := AccessReviewEvidence{TotalLocalAccounts: total}
+	ev := AccessReviewEvidence{TotalLocalAccounts: total, InactiveUnknown: true}
 	if len(ls) > 1 {
 		if v, ok := atoiSafe(ls[1]); ok {
 			ev.InactiveAccounts = v
+			ev.InactiveUnknown = false
 		}
 	}
 	return json.Marshal(ev)

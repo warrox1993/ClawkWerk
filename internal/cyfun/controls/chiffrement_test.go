@@ -104,8 +104,12 @@ func TestEncryptionWindowsNormalizer(t *testing.T) {
 }
 
 func TestEncryptionWindowsNormalizer_MissingField(t *testing.T) {
-	if _, err := EncryptionWindowsNormalizer([]byte(`{"in_transit_enforced":true}`)); err == nil {
-		t.Fatal("champ at_rest_enabled absent doit produire une erreur")
+	// PR.DS-01.6 (au repos) exige l'état BitLocker ; sans lui, pas de conclusion.
+	if _, err := EncryptionWindowsNormalizerFor("at_rest")([]byte(`{"in_transit_enforced":true}`)); err == nil {
+		t.Fatal("champ at_rest_enabled absent doit produire une erreur pour PR.DS-01.6")
+	}
+	if _, err := EncryptionWindowsNormalizer([]byte(`{}`)); err == nil {
+		t.Fatal("une sortie sans aucun champ doit produire une erreur")
 	}
 }
 

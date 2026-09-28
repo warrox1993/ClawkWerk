@@ -40,7 +40,9 @@ func TestBackupTested1102Evaluator(t *testing.T) {
 }
 
 // TestBackupOffsite1103Evaluator vérifie PR.DS-11.3 (emplacement distinct) :
-// hors-site configuré → Defined/Pass ; sinon Repeatable/Partial.
+// hors-site configuré → Defined/Pass ; sinon NON ÉVALUÉ (aucune sonde ne mesure
+// l'emplacement hors-site : la note vient de l'attestation du questionnaire,
+// jamais d'une valeur non mesurée — revue du 28/09/2026).
 func TestBackupOffsite1103Evaluator(t *testing.T) {
 	host := assess.HostRef{ID: "SRV-02", OS: "windows"}
 	cases := []struct {
@@ -50,8 +52,8 @@ func TestBackupOffsite1103Evaluator(t *testing.T) {
 		wantStatus assess.Status
 	}{
 		{"hors-site configuré", BackupEvidence{SolutionPresent: true, ScheduledJob: true, OffsiteConfigured: true}, cyfun.Defined, assess.StatusPass},
-		{"pas de hors-site", BackupEvidence{SolutionPresent: true, ScheduledJob: true}, cyfun.Repeatable, assess.StatusPartial},
-		{"rien", BackupEvidence{}, cyfun.Repeatable, assess.StatusPartial},
+		{"pas de hors-site", BackupEvidence{SolutionPresent: true, ScheduledJob: true}, cyfun.NotAssessed, assess.StatusError},
+		{"rien", BackupEvidence{}, cyfun.NotAssessed, assess.StatusError},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

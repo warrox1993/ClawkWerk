@@ -23,6 +23,11 @@ type PatchEvidence struct {
 	DaysSinceLastUpdate    int    `json:"days_since_last_update"`   // ancienneté du dernier patch appliqué
 	AutoUpdateEnabled      bool   `json:"auto_update_enabled"`      // mises à jour automatiques activées
 	Manager                string `json:"manager"`                  // "windows-update", "apt", "dnf"
+	// PendingUnknown : le nombre de correctifs en attente n'a PAS pu être
+	// mesuré (Windows : l'API Windows Update refuse une session WinRM). La
+	// décision repose alors sur l'ancienneté du dernier correctif installé, et le
+	// niveau est plafonné à Defined.
+	PendingUnknown bool `json:"pending_unknown,omitempty"`
 }
 
 // IDAM0802Meta : métadonnées officielles (texte exact du CCB). Key Measure.
@@ -51,29 +56,50 @@ const (
 
 // --- Normalisation brut → PatchEvidence ---
 
-// winUpdateRaw = JSON émis par la commande Windows Update (voir registry) :
-// {"pending":<int>,"auto":<bool>}.
+// winUpdateRaw = JSON émis par la sonde Windows (voir registry) :
+// {"pending":<int|null>,"auto":<bool>,"days_since_last_install":<int|null>}.
+// La sonde actuelle lit l'ancienneté du dernier correctif OS installé dans le
+// journal System (événement 19 du client Windows Update, mises à jour de
+// définitions Defender et outil MSRT exclues) : l'API Windows Update
+// (Microsoft.Update.Session) répond « Accès refusé » à toute session WinRM,
+// constaté sur Windows 11 25H2 le 28/09/2026. « pending » reste accepté pour
+// les preuves plus anciennes.
 type winUpdateRaw struct {
 	Pending *int  `json:"pending"`
 	Auto    *bool `json:"auto"`
+	Days    *int  `json:"days_since_last_install"`
+	// NoneFor : aucune installation de correctif OS (KB) dans le journal System,
+	// qui couvre ce nombre de jours (âge de son plus ancien événement).
+	NoneFor *int `json:"no_os_update_for_days"`
 }
 
-// PatchWindowsNormalizer mappe la sortie Windows Update. L'ancienneté du dernier
-// patch n'est pas exposée simplement par l'API COM : on la laisse à 0 (inconnue,
-// non pénalisante seule).
+// PatchWindowsNormalizer mappe la sortie Windows. Il faut au moins une mesure :
+// le nombre de correctifs en attente OU l'ancienneté du dernier correctif OS
+// installé. Sans aucune des deux (journal vide ou purgé), la preuve est rejetée :
+// l'absence de trace n'est pas une conclusion.
 func PatchWindowsNormalizer(raw []byte) (json.RawMessage, error) {
 	var w winUpdateRaw
 	if err := json.Unmarshal(raw, &w); err != nil {
 		return nil, fmt.Errorf("sortie Windows Update illisible : %w", err)
 	}
-	if w.Pending == nil {
-		return nil, errors.New("champ pending absent")
+	if w.Pending == nil && w.Days == nil && w.NoneFor != nil && *w.NoneFor > patchesStaleDays {
+		// Aucun correctif OS installé sur toute la période couverte par le
+		// journal (plus de 60 j) : c'est une borne inférieure de l'ancienneté,
+		// suffisante pour conclure au retard.
+		w.Days = w.NoneFor
+	}
+	if w.Pending == nil && w.Days == nil {
+		if w.NoneFor != nil {
+			return nil, fmt.Errorf("aucun correctif OS journalisé sur les %d j conservés par le journal System : ancienneté non mesurable", *w.NoneFor)
+		}
+		return nil, errors.New("ni correctifs en attente ni installation de correctif OS journalisée : état des correctifs non mesurable")
 	}
 	return json.Marshal(PatchEvidence{
 		PendingSecurityUpdates: derefInt(w.Pending),
-		DaysSinceLastUpdate:    0,
+		DaysSinceLastUpdate:    derefInt(w.Days),
 		AutoUpdateEnabled:      derefBool(w.Auto),
 		Manager:                "windows-update",
+		PendingUnknown:         w.Pending == nil,
 	})
 }
 
@@ -133,6 +159,7 @@ func evaluatePatch(host assess.HostRef, ev PatchEvidence) assess.HostAssessment 
 			"days_since_last_update":   ev.DaysSinceLastUpdate,
 			"auto_update_enabled":      ev.AutoUpdateEnabled,
 			"manager":                  ev.Manager,
+			"pending_unknown":          ev.PendingUnknown,
 		},
 	}
 	manyPending := ev.PendingSecurityUpdates > patchesToleratedNum
@@ -141,6 +168,15 @@ func evaluatePatch(host assess.HostRef, ev PatchEvidence) assess.HostAssessment 
 
 	var lvl cyfun.MaturityLevel
 	switch {
+	case ev.PendingUnknown && stale:
+		lvl, f.Status = cyfun.Initial, assess.StatusFail
+		f.Message = fmt.Sprintf("Dernier correctif OS installé il y a %d j (> %d j).", ev.DaysSinceLastUpdate, patchesStaleDays)
+	case ev.PendingUnknown && !ev.AutoUpdateEnabled:
+		lvl, f.Status = cyfun.Repeatable, assess.StatusPartial
+		f.Message = fmt.Sprintf("Dernier correctif OS installé il y a %d j ; mises à jour automatiques désactivées par stratégie ; correctifs en attente non mesurables à distance.", ev.DaysSinceLastUpdate)
+	case ev.PendingUnknown:
+		lvl, f.Status = cyfun.Defined, assess.StatusPass
+		f.Message = fmt.Sprintf("Dernier correctif OS installé il y a %d j (≤ %d j), mises à jour automatiques non désactivées ; correctifs en attente non mesurables à distance.", ev.DaysSinceLastUpdate, patchesStaleDays)
 	case manyPending || stale:
 		lvl, f.Status = cyfun.Initial, assess.StatusFail
 		f.Message = fmt.Sprintf("Parc en retard : %d correctif(s) sécurité en attente, dernier patch il y a %d j.",

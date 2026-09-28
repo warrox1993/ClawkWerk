@@ -20,6 +20,10 @@ import (
 type LocalAdminEvidence struct {
 	AdminCount           int  `json:"admin_count"`            // membres du groupe administrateurs local
 	BuiltinAdminDisabled bool `json:"builtin_admin_disabled"` // compte Administrator/root intégré désactivé
+	// BuiltinAdminUnknown : l'état du compte intégré n'a pas pu être lu (Linux :
+	// `passwd -S root` exige root). Il n'est alors ni crédité ni pénalisé ;
+	// constaté le 28/09/2026 : root VERROUILLÉ rapporté « actif » faute de droits.
+	BuiltinAdminUnknown bool `json:"builtin_admin_unknown,omitempty"`
 }
 
 // PRAA0504Meta : texte officiel du CCB. Key Measure.
@@ -75,6 +79,9 @@ func evaluateLocalAdmin(host assess.HostRef, ev LocalAdminEvidence) assess.HostA
 	case ev.AdminCount > adminsToleratedThreshold:
 		lvl, f.Status = cyfun.Repeatable, assess.StatusPartial
 		f.Message = fmt.Sprintf("%d comptes administrateurs locaux : à réduire au strict nécessaire.", ev.AdminCount)
+	case ev.BuiltinAdminUnknown:
+		lvl, f.Status = cyfun.Defined, assess.StatusPass
+		f.Message = fmt.Sprintf("Périmètre d'administration réduit (%d) ; état du compte intégré non lisible avec ce compte de service (à attester).", ev.AdminCount)
 	case !ev.BuiltinAdminDisabled:
 		lvl, f.Status = cyfun.Defined, assess.StatusPass
 		f.Message = fmt.Sprintf("Périmètre d'administration réduit (%d), mais compte intégré actif.", ev.AdminCount)
@@ -125,5 +132,6 @@ func LocalAdminLinuxNormalizer(raw []byte) (json.RawMessage, error) {
 	return json.Marshal(LocalAdminEvidence{
 		AdminCount:           count,
 		BuiltinAdminDisabled: len(ls) > 1 && ls[1] == "yes",
+		BuiltinAdminUnknown:  len(ls) < 2 || (ls[1] != "yes" && ls[1] != "no"),
 	})
 }
