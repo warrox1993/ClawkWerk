@@ -36,21 +36,24 @@ jobs:
           CGO_ENABLED: '0'
           GOARCH: amd64
           VERSION: ${{ github.ref_name }}
+        # Sorties écrites HORS du dépôt : un fichier non suivi dans l'arbre
+        # marquerait les binaires suivants vcs.modified=true.
         run: |
-          mkdir -p dist
+          dist="$RUNNER_TEMP/dist"
+          mkdir -p "$dist"
           flags='-trimpath -ldflags=-buildid='
           for os in linux windows; do
             ext=''
             [ "$os" = windows ] && ext='.exe'
-            GOOS=$os go build $flags -o "dist/clawkwerk-orchestrator_${VERSION}_${os}_amd64${ext}" ./cmd/orchestrator
-            GOOS=$os go build $flags -tags history -o "dist/clawkwerk-orchestrator-consultant_${VERSION}_${os}_amd64${ext}" ./cmd/orchestrator
-            GOOS=$os go build $flags -o "dist/clawkwerk-questionnaire_${VERSION}_${os}_amd64${ext}" ./cmd/questionnaire
+            GOOS=$os go build $flags -o "$dist/clawkwerk-orchestrator_${VERSION}_${os}_amd64${ext}" ./cmd/orchestrator
+            GOOS=$os go build $flags -tags history -o "$dist/clawkwerk-orchestrator-consultant_${VERSION}_${os}_amd64${ext}" ./cmd/orchestrator
+            GOOS=$os go build $flags -o "$dist/clawkwerk-questionnaire_${VERSION}_${os}_amd64${ext}" ./cmd/questionnaire
           done
-          for b in dist/*linux_amd64; do
+          for b in "$dist"/*linux_amd64; do
             file "$b" | grep -q "statically linked" || { echo "$b n'est pas statique"; exit 1; }
           done
-          (cd dist && sha256sum * > SHA256SUMS)
-          cat dist/SHA256SUMS
+          (cd "$dist" && sha256sum * > SHA256SUMS)
+          cat "$dist/SHA256SUMS"
 
       - name: Notes de version (section du CHANGELOG)
         env:
@@ -60,17 +63,17 @@ jobs:
           awk -v v="$num" '
             /^## / { dedans = (index($0, "[" v "]") > 0); next }
             dedans { print }
-          ' CHANGELOG.md > notes.md
-          test -s notes.md || { echo "Section [$num] absente du CHANGELOG"; exit 1; }
-          cat notes.md
+          ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          test -s "$RUNNER_TEMP/notes.md" || { echo "Section [$num] absente du CHANGELOG"; exit 1; }
+          cat "$RUNNER_TEMP/notes.md"
 
       - name: Création de la release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ github.ref_name }}
         run: |
-          gh release create "$VERSION" dist/* \
+          gh release create "$VERSION" "$RUNNER_TEMP"/dist/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "ClawkWerk $VERSION" \
-            --notes-file notes.md \
+            --notes-file "$RUNNER_TEMP/notes.md" \
             --verify-tag
