@@ -33,7 +33,7 @@ type HardwareEvidence struct {
 // HardwareWinCmd : collecte Windows LECTURE SEULE. Énumère les entités PnP
 // (Win32_PnPEntity) présentes sur l'hôte via CIM — une simple requête WMI de
 // LECTURE, aucun effet de bord. Émet du JSON {items_enumerated}.
-const HardwareWinCmd = `$n=@(Get-CimInstance Win32_PnPEntity -ErrorAction SilentlyContinue).Count; [pscustomobject]@{items_enumerated=$n} | ConvertTo-Json`
+const HardwareWinCmd = WinPre + `try{$n=@(Get-CimInstance Win32_PnPEntity -EA Stop).Count}catch{$n=@(pnputil /enum-devices 2>$null|Select-String ':\s+\S+\\\S+').Count; if($n -eq 0){F 'inventaire materiel (WMI Win32_PnPEntity)' $_}}; [pscustomobject]@{items_enumerated=$n}|ConvertTo-Json`
 
 // HardwareLinuxCmd : collecte Linux LECTURE SEULE. Énumère les composants PCI et
 // USB LOCAUX ; chaque ligne = un composant, `grep -c .` en donne le nombre.

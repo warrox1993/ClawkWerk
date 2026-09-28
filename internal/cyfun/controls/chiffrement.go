@@ -36,7 +36,7 @@ type EncryptionEvidence struct {
 // {at_rest_enabled, in_transit_enforced, removable_encrypted}. Lit l'état
 // BitLocker du volume système, l'exigence de signature du client SMB, et la
 // présence d'au moins un volume de données amovible protégé.
-const EncryptionWinCmd = `$os=(Get-BitLockerVolume -MountPoint $env:SystemDrive -ErrorAction SilentlyContinue).ProtectionStatus; $smb=(Get-SmbClientConfiguration -ErrorAction SilentlyContinue).RequireSecuritySignature; $rem=@(Get-BitLockerVolume -ErrorAction SilentlyContinue | Where-Object {$_.VolumeType -eq 'Data' -and $_.ProtectionStatus -eq 'On'}).Count; [pscustomobject]@{at_rest_enabled=($os -eq 'On'); in_transit_enforced=[bool]$smb; removable_encrypted=($rem -gt 0)} | ConvertTo-Json`
+const EncryptionWinCmd = WinPre + `try{$os=((Get-BitLockerVolume -MountPoint $env:SystemDrive -EA Stop).ProtectionStatus -eq 'On'); $rem=@(Get-BitLockerVolume -EA Stop|?{$_.VolumeType -eq 'Data' -and $_.ProtectionStatus -eq 'On'}).Count}catch [Management.Automation.CommandNotFoundException]{$os=$false; $rem=0}catch{F 'BitLocker (Win32_EncryptableVolume, reserve aux administrateurs)' $_}; $smb=(Get-SmbClientConfiguration -EA SilentlyContinue).RequireSecuritySignature; [pscustomobject]@{at_rest_enabled=$os; in_transit_enforced=[bool]$smb; removable_encrypted=($rem -gt 0)}|ConvertTo-Json`
 
 // EncryptionLinuxCmd : collecte Linux LECTURE SEULE, émet 3 lignes yes/no :
 // chiffrement au repos (présence d'un device de type crypt), en transit

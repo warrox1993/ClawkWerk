@@ -49,7 +49,7 @@ var PRDS1101Questions = []survey.Question{
 // le nom évoque une sauvegarde (schtasks downlevel). Le caractère hors-site
 // n'est pas déductible ici : offsite_configured=false, à confirmer au
 // questionnaire.
-const PRDS1101WinCmd = `$svc=@(Get-Service 2>$null | Where-Object {$_.Name -match 'wbengine|Veeam|Backup|Acronis'}); $sched=@(schtasks /query /fo LIST 2>$null | Select-String 'Backup'); [pscustomobject]@{solution_present=($svc.Count -gt 0); scheduled_job=($sched.Count -gt 0); offsite_configured=$false} | ConvertTo-Json`
+const PRDS1101WinCmd = WinPre + `$re='Veeam|Acronis|BackupExec|Datto|Cohesity|Rubrik|Commvault|GxCVD|Carbonite|Nakivo|UrBackup|Macrium|Arcserve|Duplicati|Altaro|Druva'; ` + WinAutoServices + `$t=@(schtasks /query /fo csv /nh 2>$null|ConvertFrom-Csv -Header n,d,s|?{$_.n -notlike '\Microsoft\*' -and $_.n -match 'backup|sauvegarde|restic|veeam'}); [pscustomobject]@{solution_present=($S.Count -gt 0); scheduled_job=($t.Count -gt 0); offsite_configured=$false}|ConvertTo-Json`
 
 // PRDS1101LinuxCmd : sonde Linux LECTURE SEULE (3 lignes yes/no) — présence
 // d'un outil de sauvegarde, existence d'une planification (cron/timer), et

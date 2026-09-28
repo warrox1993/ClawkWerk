@@ -279,12 +279,16 @@ func truthy(v any) bool {
 
 // isBlockAction indique si l'action entrante par défaut bloque. Valeurs
 // possibles selon la version : "Block", ou l'entier 4 (NetSecurity.Block).
+// « NotConfigured » (0) signifie que la valeur par défaut de Windows s'applique,
+// c'est-à-dire BLOQUER : c'est l'état d'un Windows 11 d'origine (constaté le
+// 28/09/2026), que l'ancienne version classait à tort comme « autoriser ».
 func isBlockAction(v any) bool {
 	switch x := v.(type) {
 	case string:
-		return strings.EqualFold(strings.TrimSpace(x), "block")
+		s := strings.TrimSpace(x)
+		return strings.EqualFold(s, "block") || strings.EqualFold(s, "notconfigured")
 	case float64:
-		return int(x) == 4
+		return int(x) == 4 || int(x) == 0
 	default:
 		return false
 	}

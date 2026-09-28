@@ -97,7 +97,7 @@ func evaluateAccessReview(host assess.HostRef, ev AccessReviewEvidence) assess.H
 // PRAA0501WinCmd : collecte Windows LECTURE SEULE, émet du JSON. Get-LocalUser,
 // avec repli WMI Win32_UserAccount pour compatibilité Windows 7. Compte les
 // comptes activés n'ayant jamais eu de LastLogon (dormants).
-const PRAA0501WinCmd = `$all=@(Get-LocalUser -ErrorAction SilentlyContinue); if(-not $all){ $all=@(Get-WmiObject Win32_UserAccount -Filter "LocalAccount=True" -ErrorAction SilentlyContinue) }; $inactive=@($all | Where-Object {$_.Enabled -and -not $_.LastLogon}).Count; [pscustomobject]@{inactive_accounts=$inactive; total_local_accounts=$all.Count} | ConvertTo-Json`
+const PRAA0501WinCmd = WinPre + `try{$all=@(Get-LocalUser -EA Stop)}catch{try{$all=@(Get-WmiObject Win32_UserAccount -Filter "LocalAccount=True" -EA Stop)}catch{F 'comptes locaux' $_}}; $inactive=@($all|?{$_.Enabled -and -not $_.LastLogon -and "$($_.PrincipalSource)" -notmatch 'MicrosoftAccount|AzureAD'}).Count; [pscustomobject]@{inactive_accounts=$inactive; total_local_accounts=$all.Count}|ConvertTo-Json`
 
 // PRAA0501LinuxCmd : collecte Linux LECTURE SEULE, émet 2 lignes : nombre de
 // comptes humains (UID 1000..65533), puis nombre de comptes jamais connectés.

@@ -55,7 +55,7 @@ const (
 	// Émet la sortie BRUTE de `net accounts` (parsée en Go, multilingue) + l'état du
 	// compte invité repéré par son RID (501), NEUTRE en langue — contrairement au
 	// nom « Guest »/« Invité »/… qui est traduit. GUEST_DISABLED=1 si désactivé/absent.
-	PRAA0101WinCmd   = `net accounts; $g=Get-WmiObject Win32_UserAccount -Filter "LocalAccount=True" -ErrorAction SilentlyContinue | Where-Object {$_.SID -like '*-501'}; $gd=1; if($g -and -not $g.Disabled){$gd=0}; Write-Output "GUEST_DISABLED=$gd"`
+	PRAA0101WinCmd   = WinPre + `$o=[Text.Encoding]::GetEncoding([Globalization.CultureInfo]::CurrentCulture.TextInfo.OEMCodePage); $c=[Console]::OutputEncoding; [Console]::OutputEncoding=$o; $t=net accounts; [Console]::OutputEncoding=$c; $t; try{$u=@(Get-LocalUser -EA Stop)}catch{try{$u=@(Get-WmiObject Win32_UserAccount -Filter "LocalAccount=True" -EA Stop|Select-Object SID,@{n='Enabled';e={-not $_.Disabled}})}catch{F 'comptes locaux' $_}}; $g=$u|?{"$($_.SID)" -like '*-501'}; $gd=1; if($g -and $g.Enabled){$gd=0}; "GUEST_DISABLED=$gd"`
 	PRAA0101LinuxCmd = `V=$(grep -E '^PASS_MIN_LEN' /etc/login.defs 2>/dev/null | awk '{print $2}' | head -1); [ -z "$V" ] && V=$(grep -E '^[[:space:]]*minlen' /etc/security/pwquality.conf 2>/dev/null | awk -F= '{print $2}' | tr -d ' ' | head -1); echo ${V:-0}; W=$(grep -E '^PASS_MAX_DAYS' /etc/login.defs 2>/dev/null | awk '{print $2}' | head -1); echo ${W:-0}; (grep -rqs -e pam_faillock -e pam_tally2 /etc/pam.d 2>/dev/null) && echo yes || echo no; echo yes`
 )
 

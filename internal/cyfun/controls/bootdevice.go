@@ -31,7 +31,7 @@ type BootDeviceEvidence struct {
 // BootDeviceWinCmd : collecte Windows LECTURE SEULE. Confirm-SecureBootUEFI pour l'état
 // Secure Boot ; NoDriveTypeAutoRun (0xff/0x95/0xb5 = autorun désactivé) ; USBSTOR Start
 // à 0x4 (pilote de stockage USB désactivé => média restreint). Émet du JSON canonique.
-const BootDeviceWinCmd = `$sb=$false; try{$sb=Confirm-SecureBootUEFI}catch{}; $ar=(reg query "HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v NoDriveTypeAutoRun 2>$null | Select-String '0xff|0x95|0xb5'); $rem=(reg query "HKLM\System\CurrentControlSet\Services\USBSTOR" /v Start 2>$null | Select-String '0x4'); [pscustomobject]@{secure_boot_enabled=[bool]$sb; removable_restricted=($rem -ne $null); autorun_disabled=($ar -ne $null)} | ConvertTo-Json`
+const BootDeviceWinCmd = WinPre + `try{$sb=[bool](Confirm-SecureBootUEFI -EA Stop)}catch{$sb=((Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Control\SecureBoot\State -EA SilentlyContinue).UEFISecureBootEnabled -eq 1)}; $ar=(reg query "HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v NoDriveTypeAutoRun 2>$null | Select-String '0xff|0x95|0xb5'); $rem=(reg query "HKLM\System\CurrentControlSet\Services\USBSTOR" /v Start 2>$null | Select-String '0x4'); [pscustomobject]@{secure_boot_enabled=$sb; removable_restricted=($rem -ne $null); autorun_disabled=($ar -ne $null)} | ConvertTo-Json`
 
 // BootDeviceLinuxCmd : collecte Linux LECTURE SEULE, émet 3 lignes yes/no : état Secure
 // Boot (mokutil), média restreint (montages usb en noexec/nodev), autorun désactivé.

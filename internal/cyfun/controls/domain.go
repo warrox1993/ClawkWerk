@@ -28,7 +28,7 @@ type DomainEvidence struct {
 
 // DomainWinCmd : collecte Windows LECTURE SEULE. Interroge WMI pour savoir si la
 // machine fait partie d'un domaine et émet du JSON {domain_joined:bool}.
-const DomainWinCmd = `[pscustomobject]@{domain_joined=(Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).PartOfDomain} | ConvertTo-Json`
+const DomainWinCmd = WinPre + `try{$j=(Get-CimInstance Win32_ComputerSystem -EA Stop).PartOfDomain}catch{$t=(dsregcmd /status 2>$null) -join ' '; if($t -match 'DomainJoined\s*:\s*(YES|NO)'){$j=($Matches[1] -eq 'YES')}else{F 'appartenance au domaine (WMI)' $_}}; [pscustomobject]@{domain_joined=$j}|ConvertTo-Json`
 
 // DomainLinuxCmd : collecte Linux LECTURE SEULE. Un annuaire est considéré présent
 // si realm liste au moins un domaine, OU si un démon d'intégration (sssd/winbind)

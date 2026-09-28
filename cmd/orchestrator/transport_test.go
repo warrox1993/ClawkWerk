@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/pem"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,7 +15,7 @@ import (
 )
 
 func TestBuildSource_File(t *testing.T) {
-	src, err := buildSource("file", "./sample/evidence", "", false, time.Second)
+	src, err := buildSource("file", "./sample/evidence", "", winrmOptions{}, time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,13 +26,13 @@ func TestBuildSource_File(t *testing.T) {
 
 func TestBuildSource_RemoteRequiresKnownHosts(t *testing.T) {
 	// Sécurité : pas de connexion SSH sans vérification de clé d'hôte.
-	if _, err := buildSource("remote", "", "", false, time.Second); err == nil {
+	if _, err := buildSource("remote", "", "", winrmOptions{}, time.Second); err == nil {
 		t.Fatal("mode remote sans -known-hosts doit échouer")
 	}
 }
 
 func TestBuildSource_UnknownTransport(t *testing.T) {
-	if _, err := buildSource("carrier-pigeon", "", "", false, time.Second); err == nil {
+	if _, err := buildSource("carrier-pigeon", "", "", winrmOptions{}, time.Second); err == nil {
 		t.Fatal("un transport inconnu doit être rejeté")
 	}
 }
@@ -42,7 +45,7 @@ func TestBuildSource_RemoteWithKnownHosts(t *testing.T) {
 	if err := os.WriteFile(kh, []byte(line), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	src, err := buildSource("remote", "", kh, false, time.Second)
+	src, err := buildSource("remote", "", kh, winrmOptions{}, time.Second)
 	if err != nil {
 		t.Fatalf("known_hosts valide doit permettre la construction : %v", err)
 	}
@@ -118,5 +121,36 @@ func TestResolveCreds(t *testing.T) {
 	creds, err = resolveCreds("remote", full, sc)
 	if err != nil || string(creds["ro-lnx"].Secret()) != "t" {
 		t.Fatalf("fichier complet refusé : %v", err)
+	}
+}
+
+func TestBuildSource_OptionsWinRM(t *testing.T) {
+	dir := t.TempDir()
+	kh := filepath.Join(dir, "known_hosts")
+	os.WriteFile(kh, []byte("example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINb1eqk2sd6We7q1yB2u5s3p4o5f6g7h8i9j0k1l2m3n\n"), 0o600)
+
+	if _, err := buildSource("remote", "", kh, winrmOptions{Auth: "kerberos"}, time.Second); err == nil {
+		t.Error("-winrm-auth inconnu doit être refusé")
+	}
+	if _, err := buildSource("remote", "", kh, winrmOptions{CAFile: filepath.Join(dir, "absent.pem")}, time.Second); err == nil {
+		t.Error("-winrm-ca illisible doit être refusé")
+	}
+	pasPEM := filepath.Join(dir, "pas-pem.pem")
+	os.WriteFile(pasPEM, []byte("ceci n'est pas un certificat"), 0o600)
+	if _, err := buildSource("remote", "", kh, winrmOptions{CAFile: pasPEM}, time.Second); err == nil {
+		t.Error("-winrm-ca sans certificat PEM doit être refusé")
+	}
+
+	srv := httptest.NewTLSServer(http.NotFoundHandler())
+	defer srv.Close()
+	ca := filepath.Join(dir, "ca.pem")
+	os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: srv.Certificate().Raw}), 0o600)
+	src, err := buildSource("remote", "", kh, winrmOptions{Auth: "basic", CAFile: ca}, time.Second)
+	if err != nil {
+		t.Fatalf("options valides refusées : %v", err)
+	}
+	w := src.(scan.RemoteSource).WinRM
+	if w.Auth != scan.AuthBasic || len(w.CACert) == 0 || w.Insecure {
+		t.Fatalf("options WinRM non appliquées : auth=%q ca=%d insecure=%v", w.Auth, len(w.CACert), w.Insecure)
 	}
 }

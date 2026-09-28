@@ -53,7 +53,7 @@ var DEAE0301Questions = []survey.Question{
 // Sources NEUTRES en langue (au lieu de parser auditpol/netsh dont la sortie est
 // traduite) : journal Sécurité activé via Get-WinEvent (booléen), journalisation
 // pare-feu via la valeur de REGISTRE (LogDroppedPackets = 0x1). Codes/hex neutres.
-const DEAE0301WinCmd = `$sec=(Get-WinEvent -ListLog Security -ErrorAction SilentlyContinue).IsEnabled; $fw=(reg query "HKLM\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\StandardProfile\Logging" /v LogDroppedPackets 2>$null | Select-String '0x1'); [pscustomobject]@{security_audit_enabled=[bool]$sec; firewall_logging_enabled=($fw -ne $null)} | ConvertTo-Json`
+const DEAE0301WinCmd = WinPre + `try{$sec=(Get-WinEvent -ListLog Security -EA Stop).IsEnabled}catch{F 'journal Security (groupe Lecteurs des journaux)' $_}; $all=$true; foreach($p in @(@('DomainProfile','DomainProfile'),@('StandardProfile','PrivateProfile'),@('PublicProfile','PublicProfile'))){$v=(Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\$($p[0])\Logging" -EA SilentlyContinue).LogDroppedPackets; $g=(Get-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\$($p[1])\Logging" -EA SilentlyContinue).LogDroppedPackets; if($g -ne $null){$v=$g}; if($v -ne 1){$all=$false}}; [pscustomobject]@{security_audit_enabled=[bool]$sec; firewall_logging_enabled=$all}|ConvertTo-Json`
 
 // DEAE0301LinuxCmd : deux lignes yes/no — auditd actif ; rsyslog OU
 // systemd-journald actif.

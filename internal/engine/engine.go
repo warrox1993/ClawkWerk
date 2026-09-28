@@ -230,11 +230,31 @@ func privilegeGap(data []byte) string {
 	}
 	for _, m := range markers {
 		if strings.Contains(low, m) {
-			return gapInsufficientPrivileges + " : lecture refusée — fournir un compte de service " +
+			what := "cette ressource"
+			if r := deniedResource(string(data)); r != "" {
+				what = r
+			}
+			return gapInsufficientPrivileges + " : lecture refusée (" + what + ") — fournir un compte de service " +
 				"read-only avec accès à cette ressource (aucune élévation automatique, par conception)"
 		}
 	}
 	return ""
+}
+
+// deniedResource extrait la ressource nommée par une sonde Windows dans sa
+// ligne « ACCESS DENIED: <ressource> » (voir controls.WinPre), pour que le
+// preflight dise QUOI provisionner. Renvoie "" si la sortie n'en contient pas.
+func deniedResource(out string) string {
+	const marker = "ACCESS DENIED:"
+	i := strings.Index(out, marker)
+	if i < 0 {
+		return ""
+	}
+	rest := out[i+len(marker):]
+	if j := strings.IndexAny(rest, "\r\n"); j >= 0 {
+		rest = rest[:j]
+	}
+	return strings.TrimSpace(rest)
 }
 
 func notApplicable(host assess.HostRef, controlID string) assess.HostAssessment {

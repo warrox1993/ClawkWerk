@@ -150,18 +150,18 @@ func EssentialScannables(now func() time.Time) []Control {
 // SORTIE attendu, décodé par le normaliseur correspondant du contrôle.
 const (
 	// DE.CM-01.2 — antivirus.
-	psDefenderStatus = "Get-MpComputerStatus | Select-Object AntivirusEnabled,RealTimeProtectionEnabled,AntivirusSignatureAge | ConvertTo-Json"
+	psDefenderStatus = controls.WinPre + `$re='ekrn|SAVService|Sophos|CSFalconService|SentinelAgent|^avp$|McAfee|mfemms|SepMasterService|WRSVC|bdservicehost|VSSERV|TMBMServer|ntrtscan|CylanceSvc'; ` + controls.WinAutoServices + `$t=$null; if($S.Count -gt 0){$t=[pscustomobject]@{AntivirusEnabled=$true; RealTimeProtectionEnabled=$true; AntivirusSignatureAge=$null; Product=$S[0]}}; try{$m=Get-MpComputerStatus -EA Stop; if(-not $m.AntivirusEnabled -and $t){$t|ConvertTo-Json}else{$m|Select-Object AntivirusEnabled,RealTimeProtectionEnabled,AntivirusSignatureAge|ConvertTo-Json}; exit 0}catch{}; $k='HKLM:\SOFTWARE\Microsoft\Windows Defender'; try{$run=((Get-Service WinDefend -EA Stop).Status -eq 'Running')}catch{if($t){$t|ConvertTo-Json; exit 0}; F 'Defender (service WinDefend)' $_}; if(-not $run -and $t){$t|ConvertTo-Json; exit 0}; $rt=(Get-ItemProperty "$k\Real-Time Protection" -EA SilentlyContinue).DisableRealtimeMonitoring; $prt=(Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection' -EA SilentlyContinue).DisableRealtimeMonitoring; if($prt -ne $null){$rt=$prt}; $b=(Get-ItemProperty "$k\Signature Updates" -EA SilentlyContinue).SignaturesLastUpdated; $age=$null; if($b){$age=[int][Math]::Floor(((Get-Date)-[DateTime]::FromFileTime([BitConverter]::ToInt64($b,0))).TotalDays)}; [pscustomobject]@{AntivirusEnabled=$run; RealTimeProtectionEnabled=($run -and $rt -ne 1); AntivirusSignatureAge=$age; Product='Microsoft Defender'}|ConvertTo-Json`
 	// (sonde Linux : controls.AntivirusLinuxCmd)
 
 	// DE.CM-01.1 — pare-feu local. MULTI-DISTRO côté Linux (ufw, firewalld,
 	// nftables, iptables) : voir controls.FirewallLinuxCmd.
-	psFirewallStatus = "Get-NetFirewallProfile | Select-Object Name,Enabled,DefaultInboundAction | ConvertTo-Json"
+	psFirewallStatus = controls.WinPre + `$off=((Get-Service MpsSvc -EA SilentlyContinue).Status -eq 'Stopped'); $r=foreach($p in @(@('Domain','DomainProfile','DomainProfile'),@('Private','StandardProfile','PrivateProfile'),@('Public','PublicProfile','PublicProfile'))){try{$l=Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\$($p[1])" -EA Stop}catch{F 'pare-feu (registre)' $_}; $g=Get-ItemProperty "HKLM:\SOFTWARE\Policies\Microsoft\WindowsFirewall\$($p[2])" -EA SilentlyContinue; $en=$l.EnableFirewall; if($g.EnableFirewall -ne $null){$en=$g.EnableFirewall}; $ib=$l.DefaultInboundAction; if($g.DefaultInboundAction -ne $null){$ib=$g.DefaultInboundAction}; [pscustomobject]@{Name=$p[0]; Enabled=(($en -ne 0) -and -not $off); DefaultInboundAction=$(if($ib -eq 0){'Allow'}else{'Block'})}}; $r|ConvertTo-Json`
 	// (sonde Linux : controls.FirewallLinuxCmd)
 
 	// ID.AM-08.2 — correctifs de sécurité. MULTI-DISTRO : auto-détection du
 	// gestionnaire (apt/dnf/zypper) ; émet 4 lignes : gestionnaire, nb correctifs
 	// sécurité, epoch du dernier log, "yes"/"no" auto-update.
-	psPendingUpdates = "$c=(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search(\"IsInstalled=0 and Type='Software'\").Updates.Count; $au=(New-Object -ComObject Microsoft.Update.AutoUpdate).Settings.NotificationLevel; [pscustomobject]@{pending=$c; auto=($au -ge 4)} | ConvertTo-Json"
+	psPendingUpdates = controls.WinPre + `$d=$null; try{$e=Get-WinEvent -FilterHashtable @{LogName='System';ProviderName='Microsoft-Windows-WindowsUpdateClient';Id=19} -MaxEvents 300 -EA Stop|?{"$($_.Properties[0].Value)" -notmatch 'KB2267602|KB4052623|KB890830|KB915597'}|Select-Object -First 1; if($e){$d=[int][Math]::Floor(((Get-Date)-$e.TimeCreated).TotalDays)}}catch{if("$($_.FullyQualifiedErrorId)" -notlike 'NoMatchingEventsFound*'){F 'journal System (groupe Lecteurs des journaux)' $_}}; $au=Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -EA SilentlyContinue; $auto=-not(($au.NoAutoUpdate -eq 1) -or (($au.AUOptions -ne $null) -and ($au.AUOptions -lt 4))); [pscustomobject]@{pending=$null; auto=$auto; days_since_last_install=$d}|ConvertTo-Json`
 	shPendingUpdates = "export LC_ALL=C; if command -v apt-get >/dev/null 2>&1; then echo apt; apt-get -s upgrade 2>/dev/null | grep -c '\\-security'; stat -c %Y /var/log/dpkg.log 2>/dev/null; test -f /etc/apt/apt.conf.d/20auto-upgrades && echo yes || echo no; " +
 		"elif command -v dnf >/dev/null 2>&1; then echo dnf; dnf -q updateinfo list security 2>/dev/null | grep -c .; stat -c %Y /var/log/dnf.log 2>/dev/null; systemctl is-enabled dnf-automatic.timer >/dev/null 2>&1 && echo yes || echo no; " +
 		"elif command -v zypper >/dev/null 2>&1; then echo zypper; zypper -q list-patches --category security 2>/dev/null | grep -c '|'; stat -c %Y /var/log/zypp/history 2>/dev/null; echo no; " +
@@ -171,14 +171,14 @@ const (
 	// PR.PS-04.1 — journalisation. NB : la durée de rétention et le transfert
 	// distant sont environnement-dépendants ; ces sondes émettent un format
 	// stable mais les valeurs exactes seront affinées par déploiement.
-	psLogging = "[pscustomobject]@{enabled=((Get-Service EventLog -ErrorAction SilentlyContinue).Status -eq 'Running'); retention_days=90; forwarding=$false} | ConvertTo-Json"
+	psLogging = controls.WinPre + `try{$l=Get-WinEvent -ListLog Security -EA Stop; $o=Get-WinEvent -LogName Security -MaxEvents 1 -Oldest -EA Stop}catch{F 'journal Security (groupe Lecteurs des journaux)' $_}; $d=[int][Math]::Floor(((Get-Date)-$o.TimeCreated).TotalDays); $re='splunk|Wazuh|nxlog|MMAExtension|AzureMonitorAgent|HealthService|winlogbeat|elastic-agent|fluent'; ` + controls.WinAutoServices + `$fwd=([bool](Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\EventForwarding\SubscriptionManager' -EA SilentlyContinue)) -or ($S.Count -gt 0); [pscustomobject]@{enabled=$l.IsEnabled; retention_days=$d; forwarding=$fwd; max_size_mb=[int]($l.MaximumSizeInBytes/1MB); log_mode=[string]$l.LogMode}|ConvertTo-Json`
 	shLogging = "export LC_ALL=C; systemctl is-active systemd-journald; echo 90; (grep -rqs '^[^#].*@@\\?[0-9]' /etc/rsyslog.conf /etc/rsyslog.d 2>/dev/null && echo yes || echo no)"
 
 	// PR.AA-05.4 — comptes administrateurs locaux.
 	// Groupe Administrateurs par SID UNIVERSEL (S-1-5-32-544) et compte intégré
 	// Administrateur par RID (500) — NEUTRES en langue (les noms « Administrators »/
 	// « Administrateurs »/« Administratoren »… sont traduits, le SID/RID non).
-	psLocalAdmins = "$m=@(Get-LocalGroupMember -SID 'S-1-5-32-544' -ErrorAction SilentlyContinue); $a=(Get-LocalUser -ErrorAction SilentlyContinue | Where-Object {$_.SID.Value -like '*-500'}); $b=$false; if($a){$b=$a.Enabled}; [pscustomobject]@{admin_count=$m.Count; builtin_admin_disabled=(-not $b)} | ConvertTo-Json"
+	psLocalAdmins = controls.WinPre + `try{$m=@(Get-LocalGroupMember -SID 'S-1-5-32-544' -EA Stop)}catch{try{$n=(New-Object Security.Principal.SecurityIdentifier 'S-1-5-32-544').Translate([Security.Principal.NTAccount]).Value.Split('\')[-1]; $m=@(([ADSI]"WinNT://./$n,group").psbase.Invoke('Members'))}catch{F 'groupe Administrateurs' $_}}; try{$a=@(Get-LocalUser -EA Stop)|?{$_.SID.Value -like '*-500'}}catch{F 'comptes locaux' $_}; $b=$false; if($a){$b=$a.Enabled}; [pscustomobject]@{admin_count=$m.Count; builtin_admin_disabled=(-not $b)}|ConvertTo-Json`
 	shLocalAdmins = "export LC_ALL=C; getent group sudo wheel 2>/dev/null | cut -d: -f4 | tr ',' '\\n' | grep -vc '^$'; passwd -S root 2>/dev/null | grep -q ' L ' && echo yes || echo no"
 )
 

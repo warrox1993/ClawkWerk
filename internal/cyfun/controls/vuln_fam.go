@@ -50,6 +50,12 @@ func evalVuln(host assess.HostRef, ev PatchEvidence, label string) assess.HostAs
 	}}
 	var lvl cyfun.MaturityLevel
 	switch {
+	case ev.PendingUnknown && ev.DaysSinceLastUpdate > patchesStaleDays:
+		lvl, f.Status = cyfun.Initial, assess.StatusFail
+		f.Message = fmt.Sprintf("%s : dernier correctif OS installé il y a %d j (> %d j).", label, ev.DaysSinceLastUpdate, patchesStaleDays)
+	case ev.PendingUnknown:
+		lvl, f.Status = cyfun.Repeatable, assess.StatusPartial
+		f.Message = fmt.Sprintf("%s : dernier correctif OS installé il y a %d j ; correctifs en attente non mesurables à distance, processus de gestion des vulnérabilités à attester.", label, ev.DaysSinceLastUpdate)
 	case ev.PendingSecurityUpdates > vulnManyPending:
 		lvl, f.Status = cyfun.Initial, assess.StatusFail
 		f.Message = fmt.Sprintf("%s : nombreux correctifs de sécurité en attente (%d).", label, ev.PendingSecurityUpdates)

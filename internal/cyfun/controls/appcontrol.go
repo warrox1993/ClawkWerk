@@ -34,7 +34,7 @@ type AppControlEvidence struct {
 // si une politique AppLocker effective a au moins une RuleCollection, OU si Device
 // Guard rapporte l'intégrité du code en mode audit/enforce (WDAC). Émet du JSON
 // {allowlisting_active, mode}.
-const AppControlWinCmd = `$al=@(Get-AppLockerPolicy -Effective -ErrorAction SilentlyContinue | Select-Object -ExpandProperty RuleCollections); $dg=(Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -ErrorAction SilentlyContinue).CodeIntegrityPolicyEnforcementStatus; $active=(($al.Count -gt 0) -or ($dg -ge 2)); $mode=if($dg -ge 2){'wdac'}elseif($al.Count -gt 0){'applocker'}else{'none'}; [pscustomobject]@{allowlisting_active=$active; mode=$mode} | ConvertTo-Json`
+const AppControlWinCmd = WinPre + `try{$al=@(Get-AppLockerPolicy -Effective -EA Stop|Select-Object -ExpandProperty RuleCollections|?{$_.Count -gt 0 -and "$($_.EnforcementMode)" -eq 'Enabled'})}catch{F 'AppLocker' $_}; $dg=$null; try{$dg=(Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\Microsoft\Windows\DeviceGuard -EA Stop).UsermodeCodeIntegrityPolicyEnforcementStatus}catch{if($al.Count -eq 0){F 'Device Guard (WMI)' $_}}; $active=(($al.Count -gt 0) -or ($dg -ge 2)); $mode=if($dg -ge 2){'wdac'}elseif($al.Count -gt 0){'applocker'}else{'none'}; [pscustomobject]@{allowlisting_active=$active; mode=$mode}|ConvertTo-Json`
 
 // AppControlLinuxCmd : collecte Linux LECTURE SEULE, émet 2 lignes : "yes"/"no"
 // (un MAC est-il en mode enforce), puis le moteur détecté (selinux/apparmor/none).

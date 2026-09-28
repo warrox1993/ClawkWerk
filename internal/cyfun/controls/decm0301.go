@@ -49,7 +49,7 @@ var DECM0301Questions = []survey.Question{
 
 // DECM0301WinCmd (LECTURE SEULE) : liste les services dont le nom correspond à
 // un agent EDR connu et en cours d'exécution, et émet {agent_present, agent_name}.
-const DECM0301WinCmd = `$e=@(Get-Service 2>$null | Where-Object {$_.Name -match 'Sense|CSFalconService|SentinelAgent|CbDefense|xagt|ESET|SepMasterService|WdNisSvc'} | Where-Object {$_.Status -eq 'Running'}); [pscustomobject]@{agent_present=($e.Count -gt 0); agent_name=(($e | Select-Object -First 1).Name)} | ConvertTo-Json`
+const DECM0301WinCmd = WinPre + `$re='CSFalconService|SentinelAgent|CbDefense|xagt|ekrn|ESET|SepMasterService|CylanceSvc|cyserver|elastic-agent'; ` + WinAutoServices + `$o=(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows Advanced Threat Protection\Status' -EA SilentlyContinue).OnboardingState; if($o -eq 1){$S=@('Sense')+$S}; [pscustomobject]@{agent_present=($S.Count -gt 0); agent_name=$(if($S.Count){$S[0]}else{$null})}|ConvertTo-Json`
 
 // DECM0301LinuxCmd (LECTURE SEULE) : teste les services EDR connus ; émet
 // deux lignes (yes/no puis le nom de l'agent si trouvé).
