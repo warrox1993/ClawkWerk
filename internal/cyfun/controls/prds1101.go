@@ -54,7 +54,7 @@ const PRDS1101WinCmd = WinPre + `$re='Veeam|Acronis|BackupExec|Datto|Cohesity|Ru
 // PRDS1101LinuxCmd : sonde Linux LECTURE SEULE (3 lignes yes/no) — présence
 // d'un outil de sauvegarde, existence d'une planification (cron/timer), et
 // indice hors-site (toujours "no" : non prouvable depuis l'hôte source).
-const PRDS1101LinuxCmd = `command -v restic borg duplicity rsnapshot bacula-fd 2>/dev/null | grep -q . && echo yes || echo no; (crontab -l 2>/dev/null; ls /etc/cron.d /etc/cron.daily 2>/dev/null; systemctl list-timers 2>/dev/null) | grep -v dpkg-db-backup | grep -qiE 'backup|restic|borg|duplicity|rsnapshot' && echo yes || echo no; echo no`
+const PRDS1101LinuxCmd = `export LC_ALL=C; command -v restic borg duplicity rsnapshot bacula-fd timeshift kopia urbackupclientctl 2>/dev/null | grep -q . && echo yes || echo no; (crontab -l 2>/dev/null; cat /etc/crontab 2>/dev/null; ls /etc/cron.d /etc/cron.hourly /etc/cron.daily /etc/cron.weekly 2>/dev/null; grep -hs . /etc/cron.d/* 2>/dev/null; systemctl list-timers --all --no-legend 2>/dev/null; systemctl --user list-timers --all --no-legend 2>/dev/null; grep -hs -e ExecStart -e Description /etc/systemd/system/*.service 2>/dev/null) | grep -v dpkg-db-backup | grep -qiE 'backup|sauvegarde|restic|borg|duplicity|rsnapshot|timeshift|kopia|bacula|urbackup' && echo yes || echo no; echo no`
 
 // BackupEvaluator implémente assess.Evaluator pour PR.DS-11.1.
 type BackupEvaluator struct{}

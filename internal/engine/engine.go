@@ -227,6 +227,7 @@ func privilegeGap(data []byte) string {
 		"access is denied", "access denied", "permission denied",
 		"requires elevation", "not authorized", "operation not permitted",
 		"must be root", "are you root", "refusé", "permission non accordée",
+		"insufficient permissions", "0x80070005",
 	}
 	for _, m := range markers {
 		if strings.Contains(low, m) {

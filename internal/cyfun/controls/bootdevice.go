@@ -26,6 +26,10 @@ type BootDeviceEvidence struct {
 	SecureBootEnabled   bool `json:"secure_boot_enabled"`  // UEFI Secure Boot actif (intégrité au démarrage)
 	RemovableRestricted bool `json:"removable_restricted"` // usage du stockage amovible restreint techniquement
 	AutorunDisabled     bool `json:"autorun_disabled"`     // exécution automatique des médias bloquée
+	// AutorunUnknown : aucun réglage système constatable (Linux : l'exécution
+	// automatique est un réglage de bureau par utilisateur). L'ancienne sonde
+	// émettait « yes » en dur et concluait « désactivée ».
+	AutorunUnknown bool `json:"autorun_unknown,omitempty"`
 }
 
 // BootDeviceWinCmd : collecte Windows LECTURE SEULE. Confirm-SecureBootUEFI pour l'état
@@ -37,7 +41,7 @@ const BootDeviceWinCmd = WinPre + `try{$sb=[bool](Confirm-SecureBootUEFI -EA Sto
 // Boot (mokutil), média restreint (montages usb en noexec/nodev), autorun désactivé.
 // Sous Linux il n'existe pas d'autorun interactif façon Windows => la 3e ligne est
 // toujours « yes ».
-const BootDeviceLinuxCmd = `mokutil --sb-state 2>/dev/null | grep -qi 'enabled' && echo yes || echo no; (grep -qsE 'usb.*(noexec|nodev)' /proc/mounts 2>/dev/null && echo yes || echo no); echo yes`
+const BootDeviceLinuxCmd = `mokutil --sb-state 2>/dev/null | grep -qi 'enabled' && echo yes || echo no; (grep -qsE 'usb.*(noexec|nodev)' /proc/mounts 2>/dev/null && echo yes || echo no); (grep -rqs 'autorun-never=true' /etc/dconf/db 2>/dev/null && echo yes || echo unknown)`
 
 // --- Normalisation brut → BootDeviceEvidence ---
 
@@ -75,6 +79,7 @@ func BootDeviceLinuxNormalizer(raw []byte) (json.RawMessage, error) {
 		SecureBootEnabled:   yes(0),
 		RemovableRestricted: yes(1),
 		AutorunDisabled:     yes(2),
+		AutorunUnknown:      len(ls) < 3 || (ls[2] != "yes" && ls[2] != "no"),
 	})
 }
 
@@ -195,6 +200,9 @@ func (AutorunEvaluator) Evaluate(raw assess.RawEvidence) assess.HostAssessment {
 	ev, errHA := decodeBootDevice(raw)
 	if errHA != nil {
 		return *errHA
+	}
+	if ev.AutorunUnknown {
+		return errorAssessment(raw.Host, "Exécution automatique : aucun réglage système constatable sur cet hôte (réglage de bureau par utilisateur) — à attester au questionnaire.")
 	}
 	return evalBootControl(raw.Host, ev, ev.AutorunDisabled,
 		cyfun.Defined, cyfun.Repeatable, assess.StatusFail,

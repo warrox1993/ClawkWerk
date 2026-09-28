@@ -30,6 +30,9 @@ type EncryptionEvidence struct {
 	AtRestEnabled      bool `json:"at_rest_enabled"`     // volume système chiffré (BitLocker / dm-crypt)
 	InTransitEnforced  bool `json:"in_transit_enforced"` // signature/chiffrement des flux imposé (SMB)
 	RemovableEncrypted bool `json:"removable_encrypted"` // supports amovibles chiffrés
+	// InTransitUnknown : aucun service de partage à signer n'est présent (Linux
+	// sans Samba) ; l'absence de smb.conf n'est pas « des flux exposés ».
+	InTransitUnknown bool `json:"in_transit_unknown,omitempty"`
 }
 
 // EncryptionWinCmd : collecte Windows LECTURE SEULE, émet du JSON
@@ -41,7 +44,7 @@ const EncryptionWinCmd = WinPre + `try{$os=((Get-BitLockerVolume -MountPoint $en
 // EncryptionLinuxCmd : collecte Linux LECTURE SEULE, émet 3 lignes yes/no :
 // chiffrement au repos (présence d'un device de type crypt), en transit
 // best-effort (signature Samba configurée), média amovible (best-effort : non).
-const EncryptionLinuxCmd = `lsblk -o TYPE 2>/dev/null | grep -q crypt && echo yes || echo no; (grep -qs -E 'server signing|client signing' /etc/samba/smb.conf 2>/dev/null && echo yes || echo no); echo no`
+const EncryptionLinuxCmd = `lsblk -o TYPE 2>/dev/null | grep -q crypt && echo yes || echo no; (if [ -f /etc/samba/smb.conf ]; then grep -qsiE '^[[:space:]]*(server signing|client signing|smb encrypt)[[:space:]]*=[[:space:]]*(mandatory|required)' /etc/samba/smb.conf && echo yes || echo no; else echo unknown; fi); echo no`
 
 // decodeEncryption factorise le décodage commun aux évaluateurs de la famille :
 // gère la collecte échouée et la preuve illisible via errorAssessment (renvoyé
@@ -128,6 +131,9 @@ func (InTransitEncryptionEvaluator) Evaluate(raw assess.RawEvidence) assess.Host
 	if errHA != nil {
 		return *errHA
 	}
+	if ev.InTransitUnknown {
+		return errorAssessment(raw.Host, "Chiffrement en transit : aucun service de partage de fichiers (Samba) sur cet hôte, rien à constater côté hôte — à attester au questionnaire.")
+	}
 	return evalEncryptionFlag(raw.Host, ev.InTransitEnforced, "in_transit_enforced",
 		cyfun.Managed, cyfun.Initial, assess.StatusFail, cyfun.Managed,
 		"Signature/chiffrement des flux imposé : confidentialité en transit assurée.",
@@ -199,5 +205,6 @@ func EncryptionLinuxNormalizer(raw []byte) (json.RawMessage, error) {
 		AtRestEnabled:      yes(0),
 		InTransitEnforced:  yes(1),
 		RemovableEncrypted: yes(2),
+		InTransitUnknown:   len(ls) < 2 || (ls[1] != "yes" && ls[1] != "no"),
 	})
 }

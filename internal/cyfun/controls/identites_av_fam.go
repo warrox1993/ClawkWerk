@@ -73,6 +73,9 @@ func (Dormant0103Evaluator) Evaluate(raw assess.RawEvidence) assess.HostAssessme
 	case ev.TotalLocalAccounts <= 0:
 		lvl, f.Status = cyfun.Initial, assess.StatusFail
 		f.Message = "Énumération des comptes impossible ; désactivation des comptes dormants non vérifiable."
+	case ev.InactiveUnknown:
+		lvl, f.Status = cyfun.Repeatable, assess.StatusPartial
+		f.Message = "Dernière connexion non mesurable sur cet hôte : désactivation des comptes dormants non vérifiée ; politique de désactivation à attester."
 	case ev.InactiveAccounts > inactiveAccountsManyThreshold:
 		lvl, f.Status = cyfun.Repeatable, assess.StatusPartial
 		f.Message = fmt.Sprintf("%d comptes dormants encore actifs — désactivation après inactivité insuffisante ; politique de désactivation à attester (part organisationnelle).", ev.InactiveAccounts)

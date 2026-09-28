@@ -122,9 +122,12 @@ func LoggingLinuxNormalizer(raw []byte) (json.RawMessage, error) {
 	if len(ls) == 0 {
 		return nil, errors.New("sortie journalisation vide")
 	}
-	retention := 0
-	if len(ls) > 1 {
-		retention, _ = atoiSafe(ls[1])
+	if len(ls) < 2 {
+		return nil, errors.New("durée de conservation absente")
+	}
+	retention, ok := atoiSafe(ls[1])
+	if !ok {
+		return nil, fmt.Errorf("durée de conservation non mesurable : %q", ls[1])
 	}
 	return json.Marshal(LoggingEvidence{
 		Enabled:       ls[0] == "active",

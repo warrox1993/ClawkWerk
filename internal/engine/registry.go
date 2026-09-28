@@ -168,18 +168,19 @@ const (
 		"elif command -v pacman >/dev/null 2>&1; then echo pacman; { checkupdates 2>/dev/null || true; } | grep -c .; stat -c %Y /var/log/pacman.log 2>/dev/null; echo no; " +
 		"elif command -v apk >/dev/null 2>&1; then echo apk; apk version -l '<' 2>/dev/null | grep -c .; echo 0; echo no; fi"
 
-	// PR.PS-04.1 — journalisation. NB : la durée de rétention et le transfert
-	// distant sont environnement-dépendants ; ces sondes émettent un format
-	// stable mais les valeurs exactes seront affinées par déploiement.
+	// PR.PS-04.1 — journalisation. La rétention est MESURÉE : âge du plus ancien
+	// événement conservé (journal Security sous Windows, journal systemd sous
+	// Linux). Les anciennes sondes émettaient « 90 » en dur (constaté le
+	// 28/09/2026 : 20 j réels sous Windows, 23 j sous Linux).
 	psLogging = controls.WinPre + `try{$l=Get-WinEvent -ListLog Security -EA Stop; $o=Get-WinEvent -LogName Security -MaxEvents 1 -Oldest -EA Stop}catch{F 'journal Security (groupe Lecteurs des journaux)' $_}; $d=[int][Math]::Floor(((Get-Date)-$o.TimeCreated).TotalDays); $re='splunk|Wazuh|nxlog|MMAExtension|AzureMonitorAgent|HealthService|winlogbeat|elastic-agent|fluent'; ` + controls.WinAutoServices + `$fwd=([bool](Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\EventLog\EventForwarding\SubscriptionManager' -EA SilentlyContinue)) -or ($S.Count -gt 0); [pscustomobject]@{enabled=$l.IsEnabled; retention_days=$d; forwarding=$fwd; max_size_mb=[int]($l.MaximumSizeInBytes/1MB); log_mode=[string]$l.LogMode}|ConvertTo-Json`
-	shLogging = "export LC_ALL=C; systemctl is-active systemd-journald; echo 90; (grep -rqs '^[^#].*@@\\?[0-9]' /etc/rsyslog.conf /etc/rsyslog.d 2>/dev/null && echo yes || echo no)"
+	shLogging = "export LC_ALL=C; systemctl is-active systemd-journald; O=$(journalctl -q -o short-unix --no-pager 2>&1 | head -n 1); case \"$O\" in [0-9]*) echo $(( ($(date +%s) - ${O%%.*}) / 86400 ));; *) echo \"journal illisible: $O\";; esac; (grep -rqs '^[^#].*@@\\?[0-9]' /etc/rsyslog.conf /etc/rsyslog.d 2>/dev/null && echo yes || echo no)"
 
 	// PR.AA-05.4 — comptes administrateurs locaux.
 	// Groupe Administrateurs par SID UNIVERSEL (S-1-5-32-544) et compte intégré
 	// Administrateur par RID (500) — NEUTRES en langue (les noms « Administrators »/
 	// « Administrateurs »/« Administratoren »… sont traduits, le SID/RID non).
 	psLocalAdmins = controls.WinPre + `try{$m=@(Get-LocalGroupMember -SID 'S-1-5-32-544' -EA Stop)}catch{try{$n=(New-Object Security.Principal.SecurityIdentifier 'S-1-5-32-544').Translate([Security.Principal.NTAccount]).Value.Split('\')[-1]; $m=@(([ADSI]"WinNT://./$n,group").psbase.Invoke('Members'))}catch{F 'groupe Administrateurs' $_}}; try{$a=@(Get-LocalUser -EA Stop)|?{$_.SID.Value -like '*-500'}}catch{F 'comptes locaux' $_}; $b=$false; if($a){$b=$a.Enabled}; [pscustomobject]@{admin_count=$m.Count; builtin_admin_disabled=(-not $b)}|ConvertTo-Json`
-	shLocalAdmins = "export LC_ALL=C; getent group sudo wheel 2>/dev/null | cut -d: -f4 | tr ',' '\\n' | grep -vc '^$'; passwd -S root 2>/dev/null | grep -q ' L ' && echo yes || echo no"
+	shLocalAdmins = "export LC_ALL=C; getent group sudo wheel 2>/dev/null | cut -d: -f4 | tr ',' '\\n' | grep -vc '^$'; S=$(passwd -S root 2>/dev/null) || S=; case \"$S\" in *' L '*) echo yes;; *' P '*|*' NP '*) echo no;; *) echo unknown;; esac"
 )
 
 // DefaultControls renvoie le registre des contrôles avec l'horloge système.

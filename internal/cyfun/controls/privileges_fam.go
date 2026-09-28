@@ -62,6 +62,9 @@ func evalPrivAccounts(host assess.HostRef, ev LocalAdminEvidence, many, tolerate
 	case ev.AdminCount > tolerated:
 		lvl, f.Status = cyfun.Defined, assess.StatusPartial
 		f.Message = fmt.Sprintf("%s : %d comptes à privilèges, à réduire au strict nécessaire.", label, ev.AdminCount)
+	case ev.BuiltinAdminUnknown:
+		lvl, f.Status = cyfun.Defined, assess.StatusPartial
+		f.Message = fmt.Sprintf("%s : périmètre resserré (%d) ; état du compte intégré non lisible avec ce compte de service.", label, ev.AdminCount)
 	case !ev.BuiltinAdminDisabled:
 		lvl, f.Status = cyfun.Defined, assess.StatusPartial
 		f.Message = fmt.Sprintf("%s : périmètre resserré (%d), mais compte intégré actif.", label, ev.AdminCount)

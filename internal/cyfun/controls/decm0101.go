@@ -107,7 +107,7 @@ func FirewallWindowsNormalizer(raw []byte) (json.RawMessage, error) {
 const FirewallLinuxCmd = `export LC_ALL=C PATH="$PATH:/usr/sbin:/sbin"; ` +
 	`echo '# outils'; for t in ufw firewall-cmd nft iptables; do command -v "$t" >/dev/null 2>&1 && echo "outil: $t"; done; ` +
 	`echo '# etat'; ` +
-	`if command -v ufw >/dev/null 2>&1; then ufw status verbose 2>/dev/null || echo 'illisible: ufw'; fi; ` +
+	`if command -v ufw >/dev/null 2>&1; then ufw status verbose 2>/dev/null || { echo 'illisible: ufw'; grep -qs '^ENABLED=yes' /etc/ufw/ufw.conf && systemctl is-active ufw >/dev/null 2>&1 && { echo 'config: ufw actif'; grep -s '^DEFAULT_INPUT_POLICY' /etc/default/ufw; }; }; fi; ` +
 	`if command -v firewall-cmd >/dev/null 2>&1; then firewall-cmd --state 2>&1; firewall-cmd --list-all 2>/dev/null; fi; ` +
 	`if command -v nft >/dev/null 2>&1; then if nft list ruleset >/dev/null 2>&1; then echo 'lisible: nft'; nft list ruleset 2>/dev/null | grep -E 'hook input|policy ' | head -n 20; else echo 'illisible: nft'; fi; fi; ` +
 	`if command -v iptables >/dev/null 2>&1; then iptables -S INPUT 2>/dev/null || echo 'illisible: iptables'; fi; true`
@@ -159,6 +159,15 @@ func FirewallLinuxNormalizer(raw []byte) (json.RawMessage, error) {
 		return fwLinuxEvidence(true, denyIn, "nftables")
 	case iptablesFiltersInput(iptInput):
 		return fwLinuxEvidence(true, iptablesDefaultDeny(iptInput), "iptables")
+	}
+
+	// 1 bis. ufw non lisible sans root, mais activé par sa configuration
+	// (/etc/ufw/ufw.conf ENABLED=yes, lisible par tous) et service chargé au
+	// démarrage : preuve positive par configuration (constaté le 28/09/2026 sur
+	// Ubuntu 26.04 avec un compte non root).
+	if strings.Contains(t, "config: ufw actif") {
+		denyIn := strings.Contains(t, `default_input_policy="drop"`) || strings.Contains(t, `default_input_policy="reject"`)
+		return fwLinuxEvidence(true, denyIn, "ufw (configuration)")
 	}
 
 	// 2. Un outil installé n'a pas pu être lu : on ne conclut pas à l'absence.

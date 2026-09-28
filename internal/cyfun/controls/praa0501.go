@@ -24,6 +24,11 @@ import (
 type AccessReviewEvidence struct {
 	InactiveAccounts   int `json:"inactive_accounts"`    // comptes activés jamais connectés / dormants
 	TotalLocalAccounts int `json:"total_local_accounts"` // comptes locaux énumérés
+	// InactiveUnknown : la dernière connexion n'est pas mesurable sur l'hôte
+	// (Linux sans lastlog/lastlog2, cas d'Ubuntu 26.04 constaté le 28/09/2026).
+	// L'ancienne sonde comptait alors « 0 dormant » et concluait « aucun compte
+	// dormant ».
+	InactiveUnknown bool `json:"inactive_unknown,omitempty"`
 }
 
 // PRAA0501Meta : texte officiel du CCB. Key Measure.
@@ -76,6 +81,9 @@ func evaluateAccessReview(host assess.HostRef, ev AccessReviewEvidence) assess.H
 	case ev.TotalLocalAccounts <= 0:
 		lvl, f.Status = cyfun.Initial, assess.StatusFail
 		f.Message = "Énumération des comptes impossible ; revue des accès non vérifiable."
+	case ev.InactiveUnknown:
+		lvl, f.Status = cyfun.Repeatable, assess.StatusPartial
+		f.Message = fmt.Sprintf("%d comptes énumérés ; dernière connexion non mesurable sur cet hôte, dormance non vérifiée ; revue périodique formelle à attester.", ev.TotalLocalAccounts)
 	case ev.InactiveAccounts > inactiveAccountsManyThreshold:
 		lvl, f.Status = cyfun.Repeatable, assess.StatusPartial
 		f.Message = fmt.Sprintf("%d comptes inactifs/dormants — revue des accès insuffisante ; revue périodique formelle à attester (preuve organisationnelle).", ev.InactiveAccounts)
@@ -101,7 +109,7 @@ const PRAA0501WinCmd = WinPre + `try{$all=@(Get-LocalUser -EA Stop)}catch{try{$a
 
 // PRAA0501LinuxCmd : collecte Linux LECTURE SEULE, émet 2 lignes : nombre de
 // comptes humains (UID 1000..65533), puis nombre de comptes jamais connectés.
-const PRAA0501LinuxCmd = `getent passwd 2>/dev/null | awk -F: '$3>=1000 && $3<65534 {c++} END{print c+0}'; lastlog 2>/dev/null | awk 'NR>1 && /Never logged in/ {c++} END{print c+0}'`
+const PRAA0501LinuxCmd = `export LC_ALL=C; getent passwd 2>/dev/null | awk -F: '$3>=1000 && $3<65534 && $7 !~ /(nologin|false)$/ {c++} END{print c+0}'; if command -v lastlog2 >/dev/null 2>&1; then lastlog2 2>/dev/null | awk 'NR>1 && /Never logged in/ {c++} END{print c+0}'; elif command -v lastlog >/dev/null 2>&1; then lastlog 2>/dev/null | awk 'NR>1 && /Never logged in/ {c++} END{print c+0}'; else echo unknown; fi`
 
 // --- Normalisation brut → AccessReviewEvidence ---
 
@@ -135,10 +143,11 @@ func AccessReviewLinuxNormalizer(raw []byte) (json.RawMessage, error) {
 	if !ok {
 		return nil, fmt.Errorf("nombre de comptes illisible : %q", ls[0])
 	}
-	ev := AccessReviewEvidence{TotalLocalAccounts: total}
+	ev := AccessReviewEvidence{TotalLocalAccounts: total, InactiveUnknown: true}
 	if len(ls) > 1 {
 		if v, ok := atoiSafe(ls[1]); ok {
 			ev.InactiveAccounts = v
+			ev.InactiveUnknown = false
 		}
 	}
 	return json.Marshal(ev)

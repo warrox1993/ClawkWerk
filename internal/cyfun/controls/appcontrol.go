@@ -38,7 +38,7 @@ const AppControlWinCmd = WinPre + `try{$al=@(Get-AppLockerPolicy -Effective -EA 
 
 // AppControlLinuxCmd : collecte Linux LECTURE SEULE, émet 2 lignes : "yes"/"no"
 // (un MAC est-il en mode enforce), puis le moteur détecté (selinux/apparmor/none).
-const AppControlLinuxCmd = `(getenforce 2>/dev/null | grep -qi enforcing || aa-status 2>/dev/null | grep -q 'profiles are in enforce mode') && echo yes || echo no; (getenforce 2>/dev/null | grep -qi enforcing && echo selinux || (aa-status >/dev/null 2>&1 && echo apparmor || echo none))`
+const AppControlLinuxCmd = `export LC_ALL=C; if systemctl is-active fapolicyd 2>/dev/null | grep -q '^active'; then echo yes; echo fapolicyd; else echo no; echo none; fi`
 
 // --- Normalisation brut → AppControlEvidence ---
 
